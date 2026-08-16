@@ -44,7 +44,7 @@ def validate_book_directory(book_dir: Path) -> ConversionReport:
             )
     if toc is not None:
         _require_keys(toc, {"schema_version", "nodes"}, report, "toc.json")
-    if not book:
+    if book is None:
         report.finalize()
         return report
 

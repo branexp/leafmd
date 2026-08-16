@@ -152,7 +152,7 @@ def _check_links(book_dir: Path, section_path: str, text: str, report: Conversio
             resolved = resolved.resolve()
             book_root = book_dir.resolve()
             resolved.relative_to(book_root)
-        except Exception:
+        except ValueError:
             report.add(
                 IssueSeverity.ERROR,
                 "VALIDATE_LINK_ESCAPE",

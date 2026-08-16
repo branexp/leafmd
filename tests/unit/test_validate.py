@@ -44,6 +44,17 @@ def test_validate_reports_missing_toc_fragment(tmp_path: Path) -> None:
     assert "VALIDATE_TOC_ANCHOR_MISSING" in _codes(validation)
 
 
+def test_validate_reports_toc_path_escape(tmp_path: Path) -> None:
+    epub = write_bytes(tmp_path / "book.epub", make_fragment_book())
+    book_dir, _report = convert_epub(epub, tmp_path / "out-toc-escape")
+    toc_path = book_dir / "toc.json"
+    payload = json.loads(toc_path.read_text(encoding="utf-8"))
+    payload["nodes"][0]["href"] = "../outside.md#anchor"
+    toc_path.write_text(json.dumps(payload), encoding="utf-8")
+    validation = validate_book_directory(book_dir)
+    assert "VALIDATE_TOC_ESCAPE" in _codes(validation)
+
+
 def test_strict_promotes_unresolved_link(tmp_path: Path) -> None:
     from tests.fixtures.epub_builder import make_epub3 as broken
 

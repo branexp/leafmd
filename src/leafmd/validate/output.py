@@ -186,6 +186,19 @@ def _walk_toc(book_dir: Path, nodes: list[Any], report: ConversionReport) -> Non
         if href:
             target, fragment = (href.split("#", 1) + [""])[:2]
             full = book_dir / target if target else None
+            if full is not None:
+                try:
+                    full = full.resolve()
+                    full.relative_to(book_dir.resolve())
+                except Exception:
+                    report.add(
+                        IssueSeverity.ERROR,
+                        "VALIDATE_TOC_ESCAPE",
+                        f"TOC href escapes book directory: {href}",
+                        where=href,
+                    )
+                    _walk_toc(book_dir, node.get("children") or [], report)
+                    continue
             if target and (full is None or not full.is_file()):
                 report.add(
                     IssueSeverity.WARNING,

@@ -14,6 +14,25 @@ MIN_PNG = (
 
 MIN_SVG = b'<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><rect width="1" height="1"/></svg>'
 
+HOSTILE_SVG = (
+    b'<svg xmlns="http://www.w3.org/2000/svg" '
+    b'xmlns:xlink="http://www.w3.org/1999/xlink" width="1" height="1">'
+    b"<script>alert(1)</script>"
+    b'<rect width="1" height="1" onclick="alert(1)" handler="evil()"/>'
+    b'<a xlink:href="https://evil.example/x" href="javascript:alert(1)"/>'
+    b'<foreignObject width="1" height="1">'
+    b'<body xmlns="http://www.w3.org/1999/xhtml"><script>alert(2)</script></body>'
+    b"</foreignObject></svg>"
+)
+
+CONTAINER_XML = b"""<?xml version="1.0"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles>
+    <rootfile full-path="EPUB/content.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+"""
+
 
 def _write_epub(members: dict[str, bytes], *, compress_all: bool = False) -> bytes:
     buffer = io.BytesIO()
@@ -35,6 +54,16 @@ def write_bytes(path: Path, data: bytes) -> Path:
     return path
 
 
+def _xhtml(title: str, body: str) -> bytes:
+    return (
+        '<?xml version="1.0"?>\n'
+        '<html xmlns="http://www.w3.org/1999/xhtml">\n'
+        f"<head><title>{title}</title></head>\n"
+        f"<body>\n{body}\n</body>\n"
+        "</html>\n"
+    ).encode()
+
+
 def make_epub3(*, with_image: bool = True, broken_link: bool = False) -> bytes:
     ch2_href = "missing.xhtml#nope" if broken_link else "ch01.xhtml#p1"
     image_item = (
@@ -46,13 +75,7 @@ def make_epub3(*, with_image: bool = True, broken_link: bool = False) -> bytes:
     img_tag = '<p><img src="images/pic.svg" alt="dot"/></p>' if with_image else ""
     members = {
         "mimetype": b"application/epub+zip",
-        "META-INF/container.xml": b"""<?xml version="1.0"?>
-<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
-  <rootfiles>
-    <rootfile full-path="EPUB/content.opf" media-type="application/oebps-package+xml"/>
-  </rootfiles>
-</container>
-""",
+        "META-INF/container.xml": CONTAINER_XML,
         "EPUB/content.opf": f"""<?xml version="1.0"?>
 <package xmlns="http://www.idpf.org/2007/opf" unique-identifier="bookid" version="3.0">
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
@@ -179,29 +202,14 @@ def make_zip_slip() -> bytes:
     with zipfile.ZipFile(buffer, "w") as archive:
         archive.writestr("mimetype", "application/epub+zip")
         archive.writestr("../evil.txt", "nope")
-        archive.writestr(
-            "META-INF/container.xml",
-            """<?xml version="1.0"?>
-<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
-  <rootfiles>
-    <rootfile full-path="EPUB/content.opf" media-type="application/oebps-package+xml"/>
-  </rootfiles>
-</container>
-""",
-        )
+        archive.writestr("META-INF/container.xml", CONTAINER_XML)
     return buffer.getvalue()
 
 
 def make_drm() -> bytes:
     members = {
         "mimetype": b"application/epub+zip",
-        "META-INF/container.xml": b"""<?xml version="1.0"?>
-<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
-  <rootfiles>
-    <rootfile full-path="EPUB/content.opf" media-type="application/oebps-package+xml"/>
-  </rootfiles>
-</container>
-""",
+        "META-INF/container.xml": CONTAINER_XML,
         "META-INF/encryption.xml": b"""<?xml version="1.0"?>
 <encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container"/>
 """,
@@ -232,13 +240,7 @@ def make_xxe() -> bytes:
 """
     members = {
         "mimetype": b"application/epub+zip",
-        "META-INF/container.xml": b"""<?xml version="1.0"?>
-<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
-  <rootfiles>
-    <rootfile full-path="EPUB/content.opf" media-type="application/oebps-package+xml"/>
-  </rootfiles>
-</container>
-""",
+        "META-INF/container.xml": CONTAINER_XML,
         "EPUB/content.opf": b"""<?xml version="1.0"?>
 <package xmlns="http://www.idpf.org/2007/opf" unique-identifier="bookid" version="3.0">
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
@@ -263,3 +265,217 @@ def make_xxe() -> bytes:
         "EPUB/ch01.xhtml": evil,
     }
     return _write_epub(members)
+
+
+def make_custom_epub3(
+    *,
+    title: str = "Custom",
+    chapters: list[tuple[str, str, str]],
+    extras: dict[str, bytes] | None = None,
+    manifest_extra: str = "",
+    nav_items: list[tuple[str, str]] | None = None,
+    spine: list[tuple[str, bool]] | None = None,
+) -> bytes:
+    """Build a small EPUB 3 from chapter tuples of (id, package-relative href, inner HTML)."""
+    extras = extras or {}
+    nav_items = nav_items or [(f"Chapter {index}", href) for index, (_id, href, _html) in enumerate(chapters, start=1)]
+    spine_items = spine or [(item_id, True) for item_id, _href, _html in chapters]
+    members: dict[str, bytes] = {
+        "mimetype": b"application/epub+zip",
+        "META-INF/container.xml": CONTAINER_XML,
+    }
+    chapter_items: list[str] = []
+    for item_id, href, html in chapters:
+        chapter_items.append(f'    <item id="{item_id}" href="{href}" media-type="application/xhtml+xml"/>')
+        members[f"EPUB/{href}"] = _xhtml(item_id, html)
+    nav_lis = "\n".join(f'        <li><a href="{href}">{label}</a></li>' for label, href in nav_items)
+    spine_refs = []
+    for item_id, linear in spine_items:
+        extra = "" if linear else ' linear="no"'
+        spine_refs.append(f'    <itemref idref="{item_id}"{extra}/>')
+    spine_xml = "\n".join(spine_refs)
+    members["EPUB/nav.xhtml"] = (
+        '<?xml version="1.0"?>\n'
+        '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">\n'
+        "  <head><title>Nav</title></head>\n"
+        '  <body>\n    <nav epub:type="toc">\n      <ol>\n'
+        f"{nav_lis}\n"
+        "      </ol>\n    </nav>\n  </body>\n</html>\n"
+    ).encode()
+    members["EPUB/content.opf"] = (
+        '<?xml version="1.0"?>\n'
+        '<package xmlns="http://www.idpf.org/2007/opf" unique-identifier="bookid" version="3.0">\n'
+        '  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">\n'
+        '    <dc:identifier id="bookid">urn:uuid:leafmd-custom</dc:identifier>\n'
+        f"    <dc:title>{title}</dc:title>\n"
+        "    <dc:language>en</dc:language>\n"
+        "  </metadata>\n  <manifest>\n"
+        '    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>\n'
+        + "\n".join(chapter_items)
+        + "\n"
+        + manifest_extra
+        + "  </manifest>\n  <spine>\n"
+        + spine_xml
+        + "\n  </spine>\n</package>\n"
+    ).encode()
+    members.update(extras)
+    return _write_epub(members)
+
+
+def make_fragment_book() -> bytes:
+    return make_custom_epub3(
+        title="Fragments",
+        chapters=[
+            (
+                "ch01",
+                "text/ch01.xhtml",
+                '<h1 id="welcome">Chapter 1</h1>'
+                '<p id="here">Same file target.</p>'
+                '<p><a href="#here">same file</a></p>'
+                '<p><a href="../other/ch02.xhtml#there">cross file</a></p>',
+            ),
+            (
+                "ch02",
+                "other/ch02.xhtml",
+                '<h1>Chapter 2</h1><p id="there">Cross-file target.</p>',
+            ),
+        ],
+        nav_items=[
+            ("Chapter 1", "text/ch01.xhtml#welcome"),
+            ("Chapter 2", "other/ch02.xhtml#there"),
+        ],
+    )
+
+
+def make_duplicate_id_book() -> bytes:
+    return make_custom_epub3(
+        title="Duplicate Ids",
+        chapters=[
+            (
+                "ch01",
+                "ch01.xhtml",
+                '<h1 id="dup">First</h1><p id="dup">Second same-file dup.</p>',
+            ),
+            (
+                "ch02",
+                "ch02.xhtml",
+                '<h1 id="dup">Other file same id</h1><p><a href="ch01.xhtml#dup">to first dup</a></p>',
+            ),
+        ],
+    )
+
+
+def make_scheme_book() -> bytes:
+    return make_custom_epub3(
+        title="Schemes",
+        chapters=[
+            (
+                "ch01",
+                "ch01.xhtml",
+                "<h1>Schemes</h1>"
+                '<p><a href="javascript:alert(1)">js</a></p>'
+                '<p><a href="data:text/html,hi">data</a></p>'
+                '<p><a href="file:///etc/passwd">file</a></p>'
+                '<p><a href="https://example.com">ok</a></p>',
+            )
+        ],
+    )
+
+
+def make_missing_image_book() -> bytes:
+    return make_custom_epub3(
+        title="Missing Image",
+        chapters=[("ch01", "ch01.xhtml", '<h1>Missing</h1><p><img src="images/gone.png" alt="gone"/></p>')],
+    )
+
+
+def make_remote_image_book() -> bytes:
+    return make_custom_epub3(
+        title="Remote Image",
+        chapters=[
+            (
+                "ch01",
+                "ch01.xhtml",
+                '<h1>Remote</h1><p><img src="https://example.com/x.png" alt="remote"/></p>',
+            )
+        ],
+    )
+
+
+def make_hostile_svg_book() -> bytes:
+    return make_custom_epub3(
+        title="Hostile SVG",
+        chapters=[("ch01", "ch01.xhtml", '<h1>SVG</h1><p><img src="images/evil.svg" alt="evil"/></p>')],
+        extras={"EPUB/images/evil.svg": HOSTILE_SVG},
+        manifest_extra='    <item id="evil" href="images/evil.svg" media-type="image/svg+xml"/>\n',
+    )
+
+
+def make_colliding_assets_book() -> bytes:
+    return make_custom_epub3(
+        title="Colliding Assets",
+        chapters=[
+            (
+                "ch01",
+                "ch01.xhtml",
+                '<h1>Pics</h1><p><img src="one/pic.png" alt="one"/></p><p><img src="two/pic.png" alt="two"/></p>',
+            )
+        ],
+        extras={
+            "EPUB/one/pic.png": MIN_PNG,
+            "EPUB/two/pic.png": MIN_PNG,
+        },
+        manifest_extra=(
+            '    <item id="one" href="one/pic.png" media-type="image/png"/>\n'
+            '    <item id="two" href="two/pic.png" media-type="image/png"/>\n'
+        ),
+    )
+
+
+def make_many_headings_one_file() -> bytes:
+    return make_custom_epub3(
+        title="Many Headings",
+        chapters=[
+            (
+                "all",
+                "all.xhtml",
+                '<h1 id="c1">Chapter 1 One</h1><p>first</p><h1 id="c2">Chapter 2 Two</h1><p>second</p>',
+            )
+        ],
+        nav_items=[("Chapter 1 One", "all.xhtml#c1"), ("Chapter 2 Two", "all.xhtml#c2")],
+    )
+
+
+def make_split_chapter_files() -> bytes:
+    return make_custom_epub3(
+        title="Split Chapter",
+        chapters=[
+            ("p1", "ch01a.xhtml", "<h1>Chapter 1</h1><p>part a</p>"),
+            ("p2", "ch01b.xhtml", "<p>part b of the same chapter</p>"),
+        ],
+        nav_items=[("Chapter 1", "ch01a.xhtml")],
+    )
+
+
+def make_virtual_part_book() -> bytes:
+    return make_custom_epub3(
+        title="Virtual Part",
+        chapters=[
+            ("ch01", "ch01.xhtml", "<h1>Chapter 1</h1><p>in part one</p>"),
+            ("ch02", "ch02.xhtml", "<h1>Chapter 2</h1><p>also in part one</p>"),
+        ],
+        nav_items=[("Part I", "#part1"), ("Chapter 1", "ch01.xhtml"), ("Chapter 2", "ch02.xhtml")],
+    )
+
+
+def make_malformed_html_book() -> bytes:
+    return make_custom_epub3(
+        title="Malformed",
+        chapters=[
+            (
+                "ch01",
+                "ch01.xhtml",
+                "<h1>Broken</h1><p>Unclosed paragraph<div>nested</p></div>",
+            )
+        ],
+    )

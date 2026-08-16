@@ -26,20 +26,67 @@ def validate_book_directory(book_dir: Path) -> ConversionReport:
 
     book = _load_json(book_dir / "book.json", report, "book.json")
     toc = _load_json(book_dir / "toc.json", report, "toc.json")
-    if not book:
+    conversion = _load_json(book_dir / "conversion-report.json", report, "conversion-report.json")
+    if conversion is not None:
+        _require_keys(
+            conversion,
+            {"status", "tool_version", "source_validation", "issues", "stats"},
+            report,
+            "conversion-report.json",
+        )
+        stats = conversion.get("stats")
+        if isinstance(stats, dict):
+            _require_keys(
+                stats,
+                {"source_documents", "generated_files", "images_copied", "unresolved_links", "assets_skipped"},
+                report,
+                "conversion-report.json#stats",
+            )
+    if toc is not None:
+        _require_keys(toc, {"schema_version", "nodes"}, report, "toc.json")
+    if book is None:
         report.finalize()
         return report
 
+    _require_keys(
+        book,
+        {"schema_version", "title", "sections", "assets", "conversion"},
+        report,
+        "book.json",
+    )
+    conversion_meta = book.get("conversion")
+    if isinstance(conversion_meta, dict):
+        _require_keys(conversion_meta, {"tool", "tool_version"}, report, "book.json#conversion")
+
     sections = book.get("sections") or []
     seen_ids: set[str] = set()
+    seen_paths: set[str] = set()
     seen_anchors: set[str] = set()
     for section in sections:
+        if not isinstance(section, dict):
+            report.add(IssueSeverity.ERROR, "VALIDATE_SCHEMA", "Section entry must be an object", where="book.json")
+            continue
+        _require_keys(
+            section,
+            {"id", "order", "type", "title", "path", "role", "sources"},
+            report,
+            f"book.json#sections/{section.get('id') or '?'}",
+        )
         path = section.get("path")
         section_id = section.get("id")
         if section_id in seen_ids:
             report.add(IssueSeverity.ERROR, "VALIDATE_DUP_SECTION", f"Duplicate section id {section_id}")
         if section_id:
             seen_ids.add(section_id)
+        if isinstance(path, str) and path:
+            if path in seen_paths:
+                report.add(
+                    IssueSeverity.ERROR,
+                    "VALIDATE_DUP_PATH",
+                    f"Duplicate section path {path}",
+                    where=path,
+                )
+            seen_paths.add(path)
         if not path:
             continue
         full = book_dir / path
@@ -67,6 +114,9 @@ def validate_book_directory(book_dir: Path) -> ConversionReport:
         _walk_toc(book_dir, toc.get("nodes") or [], report)
 
     for asset in book.get("assets") or []:
+        if not isinstance(asset, dict):
+            report.add(IssueSeverity.ERROR, "VALIDATE_SCHEMA", "Asset entry must be an object", where="book.json")
+            continue
         asset_path = asset.get("path")
         if asset_path and not (book_dir / asset_path).is_file():
             report.add(
@@ -86,12 +136,15 @@ def _check_links(book_dir: Path, section_path: str, text: str, report: Conversio
     for href in hrefs:
         if href.startswith(("http://", "https://", "mailto:")):
             continue
+        target: str
+        fragment: str | None
         if href.startswith("#"):
             target = section_path
             fragment = href[1:] or None
         elif "#" in href:
-            target, fragment = href.split("#", 1)
-            fragment = fragment or None
+            href_path, href_fragment = href.split("#", 1)
+            target = href_path
+            fragment = href_fragment or None
         else:
             target, fragment = href, None
         resolved = (book_dir / section_path).parent / target
@@ -115,32 +168,67 @@ def _check_links(book_dir: Path, section_path: str, text: str, report: Conversio
                 where=section_path,
             )
             continue
-        if fragment:
-            dest_text = resolved.read_text(encoding="utf-8")
-            if f'id="{fragment}"' not in dest_text and f"id='{fragment}'" not in dest_text:
-                # Heading slugs are not the contract; explicit anchors are.
-                if f'id="{fragment}"' not in dest_text:
-                    report.add(
-                        IssueSeverity.WARNING,
-                        "VALIDATE_ANCHOR_MISSING",
-                        f"Missing explicit anchor {fragment} in {resolved.name}",
-                        where=section_path,
-                    )
+        if fragment and not _has_explicit_anchor(resolved.read_text(encoding="utf-8"), fragment):
+            report.add(
+                IssueSeverity.WARNING,
+                "VALIDATE_ANCHOR_MISSING",
+                f"Missing explicit anchor {fragment} in {resolved.name}",
+                where=section_path,
+            )
 
 
 def _walk_toc(book_dir: Path, nodes: list[Any], report: ConversionReport) -> None:
     for node in nodes:
+        if not isinstance(node, dict):
+            report.add(IssueSeverity.ERROR, "VALIDATE_SCHEMA", "TOC node must be an object", where="toc.json")
+            continue
         href = node.get("href")
         if href:
-            target = href.split("#", 1)[0]
-            if target and not (book_dir / target).is_file():
+            target, fragment = (href.split("#", 1) + [""])[:2]
+            full = book_dir / target if target else None
+            if full is not None:
+                try:
+                    full = full.resolve()
+                    full.relative_to(book_dir.resolve())
+                except ValueError:
+                    report.add(
+                        IssueSeverity.ERROR,
+                        "VALIDATE_TOC_ESCAPE",
+                        f"TOC href escapes book directory: {href}",
+                        where=href,
+                    )
+                    _walk_toc(book_dir, node.get("children") or [], report)
+                    continue
+            if target and (full is None or not full.is_file()):
                 report.add(
                     IssueSeverity.WARNING,
                     "VALIDATE_TOC_MISSING",
                     f"TOC href missing: {href}",
                     where=href,
                 )
+            elif fragment and full is not None and not _has_explicit_anchor(full.read_text(encoding="utf-8"), fragment):
+                report.add(
+                    IssueSeverity.WARNING,
+                    "VALIDATE_TOC_ANCHOR_MISSING",
+                    f"TOC fragment missing: {href}",
+                    where=href,
+                )
         _walk_toc(book_dir, node.get("children") or [], report)
+
+
+def _has_explicit_anchor(text: str, fragment: str) -> bool:
+    return f'id="{fragment}"' in text or f"id='{fragment}'" in text
+
+
+def _require_keys(payload: dict[str, Any], keys: set[str], report: ConversionReport, where: str) -> None:
+    missing = sorted(key for key in keys if key not in payload)
+    if missing:
+        report.add(
+            IssueSeverity.ERROR,
+            "VALIDATE_SCHEMA",
+            f"Missing required field(s): {', '.join(missing)}",
+            where=where,
+        )
 
 
 def _load_json(path: Path, report: ConversionReport, label: str) -> dict[str, Any] | None:

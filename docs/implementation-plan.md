@@ -1,6 +1,6 @@
 # leafmd — Final Implementation Plan
 
-**Status:** Phase 1 is scaffolded and mostly coded. It is **not** MVP-complete.  
+**Status:** Phase 1 closeout + Phase 2 link/asset correctness are coded. MVP still needs goldens, remaining contract docs, and optional `--epubcheck`.  
 **Date:** 2026-08-16  
 **Repo:** `/home/clawdbot/clawd/projects/leafmd` → private `https://github.com/branexp/leafmd`  
 **This file is the working build plan.** Use it instead of the original chat plan. GitHub/PR workflow: [github-workflow.md](github-workflow.md).
@@ -34,35 +34,33 @@ This is **not greenfield**. The original 2026-08-16 planning session produced th
 | Plan | Case A only: one spine XHTML → one Markdown file |
 | Classify | Title/filename regex rules; default `chapter` |
 | Render | markdownify ATX + simple tables + raw MathML/complex tables |
-| Links | Target map + namespaced `src-…` anchors (bugs remain; see §5) |
-| Assets | Referenced raster/SVG + cover; regex SVG sanitize |
+| Links | Target map + namespaced `src-…` anchors; same-file / `../` / nav fragments; scheme filter; duplicate-id first-wins |
+| Assets | Referenced raster/SVG + cover; filename collisions; hostile SVG strip; no remote fetch |
 | Output | `book.json`, `toc.json`, `conversion-report.json`, `index.md`, `toc.md`, `content/`, `assets/images/` |
-| Docs | architecture, canonical-format, development, security |
-| CI | ruff + mypy + pytest on 3.11/3.12 |
-| Tests | EPUB 2/3, XXE, zip-slip, DRM, broken link, slug/href/classify |
+| Docs | architecture, canonical-format, development, security, Copilot review instructions |
+| CI | uv venv + ruff + mypy + pytest on 3.11/3.12 |
+| Tests | EPUB 2/3, XXE, zip-slip, DRM, fragments, schemes, assets, validator schema, planner B/C xfail |
 
-### What is broken right now
+### What is still open
 
-Live checks on this host (2026-08-16):
+1. No approved goldens (P1-2 / P1-3 still owed before MVP acceptance).
+2. Remaining contract docs (P1-4): section-planning, links-and-anchors, validation, fixtures.
+3. Optional `--epubcheck` (P1-5). Not an MVP blocker.
+4. html5lib is characterization-only (`@pytest.mark.differential`); not a runtime dep.
+5. Planner cases B/C are documented by xfail tests. Do not implement until Phase 3.
 
-1. `.venv/bin/pytest` fails collection: `ModuleNotFoundError: tests` (repo root not on `sys.path`).
-2. `mypy --strict` reports **15 errors** in `parse/package.py`, `parse/navigation.py`, `render/markdown.py`, `validate/output.py`.
-3. Architecture/test review: cross-file fragments lose `#id` in `posix_join()`; TOC writes original EPUB ids, not namespaced anchors; `validate` skips `#…` hrefs.
-4. Build review: `python -m pytest` previously showed 11 passed / 2 failed (EPUB 3 missing explicit anchors; XXE hits a non-string lxml entity tag and `local_name()` raises).
-5. No goldens. Missing contract docs. No `--epubcheck`. No html5lib fallback.
-
-**Do not start Phase 3–6 until §8 closeout tickets P1-0 through P1-5 and P2-1 pass.**
+**Do not start Phase 3 implementation until goldens + P1-4 land. P2-1 through P2-5 are in this pass.**
 
 ### Phase scoreboard
 
 | Phase | Status |
 |---|---|
 | 0 Planning | Done. Locked decisions in §2 supersede the old five questions. |
-| 1 Vertical slice | Mostly coded. Not accepted. Closeout is the next pass. |
-| 2 Link/asset correctness | Partial. Mapping/TOC/validate/SVG/scheme gaps remain. |
-| 3 Semantic reconstruction | Not started (title-rule classifier only). |
+| 1 Vertical slice | Closeout coded. Goldens + remaining docs still open. |
+| 2 Link/asset correctness | Coded this pass (P2-1…P2-5). |
+| 3 Semantic reconstruction | Not started (title-rule classifier only; B/C xfail fixtures exist). |
 | 4 Rich content | Not started (table/math stubs only). |
-| 5 Robustness | Not started. |
+| 5 Robustness | html5lib spike only. No runtime fallback. |
 | 6 Library integration | Not started. Remote exists; no library convert yet. |
 
 ---
@@ -186,16 +184,16 @@ These are real bugs in current code, not future features.
 
 | ID | Defect | Where | Fix |
 |---|---|---|---|
-| D1 | `posix_join()` drops fragments, so `ch02.xhtml#p1` cannot resolve | `parse/hrefs.py`, `transform/links.py` | Join path and fragment separately; resolve `(path, fragment)` in the target map |
-| D2 | TOC emits original EPUB fragment ids | `render/writer.py` `_toc_json` / `_toc_markdown` | Rewrite via TargetMap; same contract as content links |
-| D3 | `validate` skips `#…` hrefs and does not check namespaced anchors thoroughly | `validate/output.py` | Resolve same-file and cross-file fragments against explicit `id=` |
-| D4 | Explicit anchors may not survive markdownify | `render/markdown.py` `_inject_explicit_anchors` | Prove `<a id="src-…"></a>` in EPUB 3 output |
-| D5 | XXE fixture can crash on non-string lxml tags | `parse/xmlutil.py` `local_name` | Accept only `str` tags; skip comments/entities |
-| D6 | Scheme filter requires `://`, so `javascript:` / `data:` / `file:` can leak | `transform/links.py` | Parse scheme on every URL-bearing attr |
-| D7 | pytest collection path | `pyproject.toml` | `pythonpath = ["."]` or stop importing `tests.*` |
-| D8 | mypy 15 errors | package/navigation/markdown/validate | Type the XML helpers; don’t paper over with ignores |
-| D9 | SVG sanitize is regex-only | `transform/assets.py` | Keep as limited Phase 1 guard; add hostile fixtures; parse-based sanitize is Phase 2/5 |
-| D10 | Classifier ignores `epub:type` / landmarks | `semantics/classify.py` | Leave for Phase 3; document as title-rule only |
+| D1 | `posix_join()` drops fragments | `parse/hrefs.py`, `transform/links.py` | **Fixed** in P1-1 / P2-1. |
+| D2 | TOC emits original EPUB fragment ids | `render/writer.py` | **Fixed** in P1-1. TOC uses TargetMap. |
+| D3 | `validate` skips `#…` hrefs | `validate/output.py` | **Fixed** in P2-3. Same-file, cross-file, and TOC fragments checked. |
+| D4 | Explicit anchors may not survive markdownify | `render/markdown.py` | **Fixed** in P1-1 / P2-1. Duplicate source ids inject once. |
+| D5 | XXE fixture can crash on non-string lxml tags | `parse/xmlutil.py` | **Fixed** in P1-1. |
+| D6 | Scheme filter requires `://` | `transform/links.py` | **Fixed** in P2-1. `javascript:` / `data:` / `file:` dropped. |
+| D7 | pytest collection path | `pyproject.toml` | **Fixed** in P1-0. |
+| D8 | mypy 15 errors | package/navigation/markdown/validate | **Fixed** in P1-1. |
+| D9 | SVG sanitize is regex-only | `transform/assets.py` | **Hardened** in P2-2 (script/event/handler/foreignObject/external href). Parse-based sanitize still Phase 5. |
+| D10 | Classifier ignores `epub:type` / landmarks | `semantics/classify.py` | Leave for Phase 3; document as title-rule only. |
 
 ---
 

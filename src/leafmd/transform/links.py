@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from lxml import etree
@@ -15,6 +16,7 @@ from leafmd.parse.xmlutil import attr, local_name
 from leafmd.transform.slug import slugify
 
 ALLOWED_SCHEMES = {"http", "https", "mailto"}
+SCHEME_RE = re.compile(r"^[a-z][a-z0-9+.-]*$")
 
 
 @dataclass
@@ -41,9 +43,11 @@ class TargetMap:
 def build_target_map(
     publication: NormalizedPublication,
     plans: list[SectionPlan],
+    report: ConversionReport | None = None,
 ) -> TargetMap:
     mapping: dict[tuple[str, str | None], OutputTarget] = {}
     used_anchors: set[str] = set()
+    seen_source_ids: set[tuple[str, str]] = set()
     for plan in plans:
         if plan.role != "file" or not plan.output_path:
             continue
@@ -69,8 +73,28 @@ def build_target_map(
                 node_id = attr(node, "id")
                 if not node_id:
                     continue
-                anchor = _unique_anchor(f"src-{stem}-{slugify(node_id, fallback='id')}", used_anchors)
-                mapping[(path, node_id)] = OutputTarget(path=plan.output_path, anchor=anchor)
+                source_key = (path, node_id)
+                if source_key in seen_source_ids:
+                    if report is not None:
+                        report.add(
+                            IssueSeverity.INFO,
+                            "ANCHOR_SOURCE_DUP",
+                            f"Duplicate source id {node_id!r} in {path}",
+                            where=path,
+                        )
+                    continue
+                seen_source_ids.add(source_key)
+                base = f"src-{stem}-{slugify(node_id, fallback='id')}"
+                disambiguated = base in used_anchors
+                anchor = _unique_anchor(base, used_anchors)
+                if disambiguated and report is not None:
+                    report.add(
+                        IssueSeverity.INFO,
+                        "ANCHOR_DISAMBIGUATED",
+                        f"Disambiguated output anchor {anchor} for {path}#{node_id}",
+                        where=path,
+                    )
+                mapping[source_key] = OutputTarget(path=plan.output_path, anchor=anchor)
     return TargetMap(by_href=mapping)
 
 
@@ -126,6 +150,22 @@ def _strip_event_handlers(node: etree._Element) -> None:
             del node.attrib[key]
 
 
+def _scheme(href: str) -> str:
+    """Return a URI scheme only for RFC 3986 scheme tokens in the first segment."""
+    if href.startswith("#"):
+        return ""
+    colon = href.find(":")
+    if colon == -1:
+        return ""
+    slash = href.find("/")
+    if slash != -1 and slash < colon:
+        return ""
+    candidate = href[:colon].lower()
+    if not SCHEME_RE.fullmatch(candidate):
+        return ""
+    return candidate
+
+
 def _rewrite_href(
     href: str,
     source_href: str,
@@ -133,8 +173,8 @@ def _rewrite_href(
     report: ConversionReport,
     section_path: str,
 ) -> str | None:
-    parsed_scheme = href.split(":", 1)[0].lower() if ":" in href and not href.startswith("#") else ""
-    if parsed_scheme and parsed_scheme not in ALLOWED_SCHEMES and "://" in href:
+    parsed_scheme = _scheme(href)
+    if parsed_scheme and parsed_scheme not in ALLOWED_SCHEMES:
         report.add(
             IssueSeverity.WARNING,
             "LINK_SCHEME_DROPPED",
@@ -166,7 +206,7 @@ def _rewrite_asset(
     asset_map: dict[str, str],
     report: ConversionReport,
 ) -> str | None:
-    if src.startswith(("http://", "https://")):
+    if src.startswith(("http://", "https://", "data:")):
         report.add(
             IssueSeverity.WARNING,
             "ASSET_REMOTE",

@@ -25,7 +25,6 @@ def test_validate_reports_missing_schema_fields(tmp_path: Path) -> None:
     book_path = book_dir / "book.json"
     payload = json.loads(book_path.read_text(encoding="utf-8"))
     del payload["title"]
-    payload["sections"][0]["path"] = payload["sections"][0]["path"]
     payload["sections"].append(dict(payload["sections"][0]))
     book_path.write_text(json.dumps(payload), encoding="utf-8")
     validation = validate_book_directory(book_dir)

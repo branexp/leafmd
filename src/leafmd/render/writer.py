@@ -28,7 +28,7 @@ def write_book_directory(
     (book_dir / "content").mkdir(exist_ok=True)
 
     asset_map = collect_and_copy_assets(publication, plans, book_dir, report)
-    targets = build_target_map(publication, plans)
+    targets = build_target_map(publication, plans, report)
 
     generated = 0
     for plan in plans:

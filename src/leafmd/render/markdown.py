@@ -88,15 +88,20 @@ def _inject_explicit_anchors(
     plan: SectionPlan,
     targets: dict[tuple[str, str | None], OutputTarget],
 ) -> None:
+    injected: set[tuple[str, str]] = set()
     for source in plan.sources:
         path = source.href.split("#", 1)[0]
         for node in list(body.iter()):
             node_id = attr(node, "id")
             if not node_id:
                 continue
-            target = targets.get((path, node_id))
+            source_key = (path, node_id)
+            if source_key in injected:
+                continue
+            target = targets.get(source_key)
             if target is None or not target.anchor:
                 continue
+            injected.add(source_key)
             anchor = etree.Element("a")
             anchor.set("id", target.anchor)
             parent = node.getparent()

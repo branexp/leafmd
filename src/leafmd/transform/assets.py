@@ -32,8 +32,10 @@ SKIP_EXACT = {
 }
 
 SCRIPT_RE = re.compile(r"<script\b[^>]*>.*?</script>", re.I | re.S)
+FOREIGN_RE = re.compile(r"<foreignObject\b[^>]*>.*?</foreignObject>", re.I | re.S)
 EVENT_RE = re.compile(r"\son[a-z]+\s*=\s*('[^']*'|\"[^\"]*\")", re.I)
-XLINK_RE = re.compile(r"""\s(?:xlink:)?href\s*=\s*['"]https?://[^'"]+['"]""", re.I)
+HANDLER_RE = re.compile(r"\shandler\s*=\s*('[^']*'|\"[^\"]*\")", re.I)
+XLINK_RE = re.compile(r"""\s(?:xlink:)?href\s*=\s*['"](?:https?:|javascript:|data:)[^'"]*['"]""", re.I)
 
 
 def collect_and_copy_assets(
@@ -97,7 +99,7 @@ def collect_and_copy_assets(
             report.add(IssueSeverity.WARNING, "ASSET_MISSING", f"Asset has no bytes: {href}", where=href)
             continue
         image_dir.mkdir(parents=True, exist_ok=True)
-        filename = _output_name(href, resource)
+        filename = _unique_output_name(href, resource, image_dir)
         dest = image_dir / filename
         payload = resource.content
         if resource.media_type == "image/svg+xml" or href.lower().endswith(".svg"):
@@ -112,7 +114,9 @@ def collect_and_copy_assets(
 def sanitize_svg(data: bytes, report: ConversionReport, where: str) -> bytes:
     text = data.decode("utf-8", errors="replace")
     cleaned = SCRIPT_RE.sub("", text)
+    cleaned = FOREIGN_RE.sub("", cleaned)
     cleaned = EVENT_RE.sub("", cleaned)
+    cleaned = HANDLER_RE.sub("", cleaned)
     cleaned = XLINK_RE.sub("", cleaned)
     if cleaned != text:
         report.add(
@@ -130,3 +134,14 @@ def _output_name(href: str, resource: Resource) -> str:
     safe_stem = slugify(stem or resource.id, fallback=resource.id)
     safe_suffix = slugify(suffix, fallback="bin") if dot else "bin"
     return f"{safe_stem}.{safe_suffix}"
+
+
+def _unique_output_name(href: str, resource: Resource, image_dir: Path) -> str:
+    filename = _output_name(href, resource)
+    stem, dot, suffix = filename.rpartition(".")
+    n = 2
+    candidate = filename
+    while (image_dir / candidate).exists():
+        candidate = f"{stem}-{n}.{suffix}" if dot else f"{filename}-{n}"
+        n += 1
+    return candidate

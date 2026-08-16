@@ -138,7 +138,19 @@ git pull --ff-only origin main
 - `mypy`
 - `pytest`
 
-CI must not update goldens. Golden refresh is an explicit local flag and a reviewed PR.
+CI must not update goldens. Golden refresh is an explicit local flag and a reviewed PR. Install uses a uv venv (not `--system`) because GitHub-hosted Ubuntu Python is externally managed.
+
+## Copilot code review
+
+PRs are reviewed with GitHub Copilot code review. Instructions are read from the **head branch**:
+
+- `.github/copilot-instructions.md` — repo-wide invariants
+- `.github/instructions/python.instructions.md` — `**/*.py`
+- `.github/instructions/tests.instructions.md` — `tests/**`
+- `.github/instructions/docs.instructions.md` — `docs/**/*.md`
+- `.github/skills/code-review/SKILL.md` — review procedure (directory name `code-review` so Copilot code review loads it)
+
+Keep those files short and imperative. Do not move product rules behind a link Copilot will not follow. Request Copilot as a reviewer on every PR; turn on automatic reviews + “Review new pushes” in repo settings if available.
 
 ## Shipping trace
 

@@ -54,6 +54,18 @@ where = ["src"]
 addopts = "-q"
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = [
+  "unit: fast isolated tests",
+  "synthetic: in-memory EPUB builders",
+  "integration: convert/validate pipeline",
+  "golden: approved output trees",
+  "security: hostile-input guards",
+  "slow: long-running tests",
+  "online: needs network",
+  "private: LEAFMD_CORPUS only",
+  "differential: parser/renderer comparisons",
+  "epubcheck: optional Docker EPUBCheck",
+]
 
 [tool.ruff]
 line-length = 120

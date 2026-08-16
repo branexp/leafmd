@@ -140,6 +140,17 @@ git pull --ff-only origin main
 
 CI must not update goldens. Golden refresh is an explicit local flag and a reviewed PR.
 
+## Copilot code review
+
+PRs are reviewed with GitHub Copilot code review. Instructions are read from the **head branch**:
+
+- `.github/copilot-instructions.md` — repo-wide invariants
+- `.github/instructions/python.instructions.md` — `**/*.py`
+- `.github/instructions/tests.instructions.md` — `tests/**`
+- `.github/instructions/docs.instructions.md` — `docs/**/*.md`
+
+Keep those files short and imperative. Do not move product rules behind a link Copilot will not follow. Request Copilot as a reviewer on every PR; turn on automatic reviews + “Review new pushes” in repo settings if available.
+
 ## Shipping trace
 
 After squash-merge:

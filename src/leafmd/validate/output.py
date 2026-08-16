@@ -152,7 +152,7 @@ def _check_links(book_dir: Path, section_path: str, text: str, report: Conversio
             resolved = resolved.resolve()
             book_root = book_dir.resolve()
             resolved.relative_to(book_root)
-        except ValueError:
+        except Exception:
             report.add(
                 IssueSeverity.ERROR,
                 "VALIDATE_LINK_ESCAPE",
@@ -190,7 +190,7 @@ def _walk_toc(book_dir: Path, nodes: list[Any], report: ConversionReport) -> Non
                 try:
                     full = full.resolve()
                     full.relative_to(book_dir.resolve())
-                except Exception:
+                except ValueError:
                     report.add(
                         IssueSeverity.ERROR,
                         "VALIDATE_TOC_ESCAPE",

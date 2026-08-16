@@ -19,6 +19,15 @@ def test_validate_accepts_generated_book(tmp_path: Path) -> None:
     assert not validation.has_fatal()
 
 
+def test_validate_reports_empty_book_json_schema(tmp_path: Path) -> None:
+    epub = write_bytes(tmp_path / "book.epub", make_epub3())
+    book_dir, _report = convert_epub(epub, tmp_path / "out-empty-book")
+    (book_dir / "book.json").write_text("{}", encoding="utf-8")
+    validation = validate_book_directory(book_dir)
+    assert "VALIDATE_SCHEMA" in _codes(validation)
+    assert validation.has_errors()
+
+
 def test_validate_reports_missing_schema_fields(tmp_path: Path) -> None:
     epub = write_bytes(tmp_path / "book.epub", make_epub3())
     book_dir, _report = convert_epub(epub, tmp_path / "out-schema")

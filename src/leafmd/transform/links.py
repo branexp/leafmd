@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from lxml import etree
@@ -15,6 +16,7 @@ from leafmd.parse.xmlutil import attr, local_name
 from leafmd.transform.slug import slugify
 
 ALLOWED_SCHEMES = {"http", "https", "mailto"}
+SCHEME_RE = re.compile(r"^[a-z][a-z0-9+.-]*$")
 
 
 @dataclass
@@ -148,6 +150,22 @@ def _strip_event_handlers(node: etree._Element) -> None:
             del node.attrib[key]
 
 
+def _scheme(href: str) -> str:
+    """Return a URI scheme only for RFC 3986 scheme tokens in the first segment."""
+    if href.startswith("#"):
+        return ""
+    colon = href.find(":")
+    if colon == -1:
+        return ""
+    slash = href.find("/")
+    if slash != -1 and slash < colon:
+        return ""
+    candidate = href[:colon].lower()
+    if not SCHEME_RE.fullmatch(candidate):
+        return ""
+    return candidate
+
+
 def _rewrite_href(
     href: str,
     source_href: str,
@@ -155,12 +173,8 @@ def _rewrite_href(
     report: ConversionReport,
     section_path: str,
 ) -> str | None:
-    if href.startswith("#"):
-        parsed_scheme = ""
-    else:
-        colon = href.find(":")
-        slash = href.find("/")
-        parsed_scheme = href[:colon].lower() if colon != -1 and (slash == -1 or colon < slash) else ""
+    parsed_scheme = _scheme(href)
+    if parsed_scheme and parsed_scheme not in ALLOWED_SCHEMES:
         report.add(
             IssueSeverity.WARNING,
             "LINK_SCHEME_DROPPED",

@@ -1,6 +1,10 @@
 from leafmd.convert import convert_epub
 from leafmd.model.issues import IssueSeverity
+from leafmd.model.section import OutputTarget
+from leafmd.report import new_report
+from leafmd.transform.links import TargetMap, _rewrite_href
 from tests.fixtures.epub_builder import (
+    make_custom_epub3,
     make_duplicate_id_book,
     make_fragment_book,
     make_scheme_book,
@@ -54,3 +58,51 @@ def test_unsafe_schemes_are_dropped(tmp_path) -> None:
     dropped = [issue for issue in report.issues if issue.code == "LINK_SCHEME_DROPPED"]
     assert {issue.severity for issue in dropped} == {IssueSeverity.WARNING}
     assert len(dropped) == 3
+
+
+def test_colon_in_filename_is_not_a_scheme() -> None:
+    report = new_report()
+    targets = TargetMap(
+        by_href={
+            ("EPUB/Text/Chapter 1: Intro.xhtml", None): OutputTarget(path="content/001.md", anchor=None),
+            ("EPUB/Text/ch02.xhtml", None): OutputTarget(path="content/002.md", anchor=None),
+        }
+    )
+    same_dir = _rewrite_href(
+        "Chapter 1: Intro.xhtml",
+        "EPUB/Text/ch02.xhtml",
+        targets,
+        report,
+        "content/002.md",
+    )
+    nested = _rewrite_href(
+        "Text/Chapter 1: Intro.xhtml",
+        "EPUB/nav.xhtml",
+        targets,
+        report,
+        "content/002.md",
+    )
+    assert same_dir == "001.md"
+    assert nested == "001.md"
+    assert "LINK_SCHEME_DROPPED" not in {issue.code for issue in report.issues}
+
+
+def test_colon_in_filename_survives_convert(tmp_path) -> None:
+    epub = write_bytes(
+        tmp_path / "colon.epub",
+        make_custom_epub3(
+            title="Colon",
+            chapters=[
+                ("ch01", "Text/Chapter 1: Intro.xhtml", "<h1>Intro</h1><p>target</p>"),
+                (
+                    "ch02",
+                    "Text/ch02.xhtml",
+                    '<h1>Next</h1><p><a href="Chapter 1: Intro.xhtml">back</a></p>',
+                ),
+            ],
+        ),
+    )
+    book_dir, report = convert_epub(epub, tmp_path / "out-colon")
+    assert "LINK_SCHEME_DROPPED" not in _codes(report)
+    second = next(path for path in (book_dir / "content").glob("002-*.md"))
+    assert "001-" in second.read_text(encoding="utf-8")

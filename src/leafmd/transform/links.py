@@ -157,11 +157,10 @@ def _rewrite_href(
 ) -> str | None:
     if href.startswith("#"):
         parsed_scheme = ""
-    elif ":" in href:
-        parsed_scheme = href.split(":", 1)[0].lower()
     else:
-        parsed_scheme = ""
-    if parsed_scheme and parsed_scheme not in ALLOWED_SCHEMES:
+        colon = href.find(":")
+        slash = href.find("/")
+        parsed_scheme = href[:colon].lower() if colon != -1 and (slash == -1 or colon < slash) else ""
         report.add(
             IssueSeverity.WARNING,
             "LINK_SCHEME_DROPPED",

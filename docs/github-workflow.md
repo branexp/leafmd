@@ -138,7 +138,7 @@ git pull --ff-only origin main
 - `mypy`
 - `pytest`
 
-CI must not update goldens. Golden refresh is an explicit local flag and a reviewed PR.
+CI must not update goldens. Golden refresh is an explicit local flag and a reviewed PR. Install uses a uv venv (not `--system`) because GitHub-hosted Ubuntu Python is externally managed.
 
 ## Copilot code review
 

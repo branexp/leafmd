@@ -277,7 +277,7 @@ def _union_toc(primary: list[Any], secondary: list[Any]) -> list[Any]:
 
 def _toc_key(node: Any) -> tuple[str, str | None]:
     if not node.href:
-        return "", None
+        return (node.title, None)
     return split_fragment(node.href)
 
 

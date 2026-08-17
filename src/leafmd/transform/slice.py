@@ -19,10 +19,10 @@ def slice_document(root: etree._Element, start_id: str | None = None, end_id: st
     children = list(body)
     start = 0
     end = len(children)
-    for index, node in enumerate(children):
-        if attr(node, "id") == start_id:
+    for index, child in enumerate(children):
+        if start_id and (attr(child, "id") == start_id or any(attr(n, "id") == start_id for n in child.iterdescendants())):
             start = index
-        if end_id and attr(node, "id") == end_id:
+        if end_id and (attr(child, "id") == end_id or any(attr(n, "id") == end_id for n in child.iterdescendants())):
             end = index
             break
     for node in children[:start] + children[end:]:

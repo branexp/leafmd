@@ -1,6 +1,6 @@
 # leafmd — Final Implementation Plan
 
-**Status:** Phase 3 coded on `feat/phase3-semantic-reconstruction` (0.2.0). Goldens + remaining contract docs remain pre-MVP.
+**Status:** Phase 3 merged on `main` (`a6dee61`, 0.2.0). Phase 4 is planned and delegated on `feat/phase4-rich-content`; no Phase 4 production code has landed yet.
 **Date:** 2026-08-16  
 **Repo:** `/home/clawdbot/clawd/projects/leafmd` → private `https://github.com/branexp/leafmd`  
 **This file is the working build plan.** Use it instead of the original chat plan. GitHub/PR workflow: [github-workflow.md](github-workflow.md).
@@ -48,8 +48,9 @@ This is **not greenfield**. The original 2026-08-16 planning session produced th
 3. Optional `--epubcheck` (P1-5). Not an MVP blocker.
 4. html5lib is characterization-only (`@pytest.mark.differential`); not a runtime dep.
 5. Phase 3 (P3-1…P3-4) is implemented. Goldens/P1-4 remain open and are still owed before MVP.
+6. Phase 4 corpus findings and tickets are recorded in [phase4-rich-content.md](phase4-rich-content.md). The three local probe EPUBs are characterization inputs only and must not enter git.
 
-**Do not start Phase 4 tables/math.** Goldens (P1-2/P1-3) and contract docs (P1-4) remain owed before MVP.
+Phase 4 is intentionally conservative: preserve content when a lossless Markdown representation is not proven, keep the existing schema/anchor contract, and do not add html5lib or MathML-to-LaTeX.
 
 ### Phase scoreboard
 
@@ -59,7 +60,7 @@ This is **not greenfield**. The original 2026-08-16 planning session produced th
 | 1 Vertical slice | Closeout coded. Goldens + remaining docs still open. |
 | 2 Link/asset correctness | Coded this pass (P2-1…P2-5). |
 | 3 Semantic reconstruction | Coded this pass (P3-1…P3-4). Hall reconvert is the acceptance check, not a golden. |
-| 4 Rich content | Not started (table/math stubs only). |
+| 4 Rich content | Planned; corpus audit complete; implementation tickets delegated. |
 | 5 Robustness | html5lib spike only. No runtime fallback. |
 | 6 Library integration | Not started. Remote exists; no library convert yet. |
 
@@ -103,6 +104,7 @@ EPUB ZIP
   → SectionPlanner (Phase 1: spine item → file)
   → TargetMap + asset copy
   → rewrite tree
+  → rich-content classify/normalize (Phase 4)
   → LeafmdConverter (markdownify)
   → BookDirectory writer
   → OutputValidator → conversion-report.json

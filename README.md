@@ -56,7 +56,9 @@ The initial Phase 1 slice was one spine document per output file. Current `0.3.x
 - conservative GFM tables and same-section local footnotes; complex tables and cross-document notes remain faithfully rewritten as raw HTML or links
 - safe preservation of MathML, ruby, and bidi markup without MathML-to-LaTeX conversion
 
-Still deferred: MOBI/PDF, DRM bypass, cache/incremental conversion, fonts/CSS/audio/video, optional Docker EPUBCheck (not currently a CLI option), and a website.
+Next planned: [Phase 5 robustness](docs/phase5-robustness.md), covering bounded malformed-XHTML recovery, broader hostile-package fixtures, parse-based SVG sanitization, optional Docker EPUBCheck, and private-corpus characterization.
+
+Still deferred: MOBI/PDF, DRM bypass, cache/incremental conversion, fonts/CSS/audio/video, and a website.
 
 ## License
 

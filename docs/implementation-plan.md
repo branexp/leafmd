@@ -1,6 +1,6 @@
 # leafmd — Final Implementation Plan
 
-**Status:** Phase 3 is merged on `main` (`a6dee61`, 0.2.0). Phase 4 is implemented and acceptance-tested on `feat/phase4-rich-content`; it remains pending PR review and merge.
+**Status:** Phase 3 is merged on `main` (`a6dee61`, 0.2.0), and Phase 4 is merged in PR 4 (`6557909`, 0.3.0). Phase 5 is planned in [phase5-robustness.md](phase5-robustness.md); no Phase 5 production implementation has started.
 **Date:** 2026-08-17
 **Repo:** `/home/clawdbot/clawd/projects/leafmd` → private `https://github.com/branexp/leafmd`  
 **This file is the working build plan.** Use it instead of the original chat plan. GitHub/PR workflow: [github-workflow.md](github-workflow.md).
@@ -27,7 +27,7 @@ This is **not greenfield**. The original 2026-08-16 planning session produced th
 
 | Area | State |
 |---|---|
-| Identity | `leafmd` 0.3.0 on this Phase 4 branch (`0.2.0` on `main`), AGPL-3.0-or-later, setuptools `src/` layout |
+| Identity | `leafmd` 0.3.0 on `main`, AGPL-3.0-or-later, setuptools `src/` layout |
 | CLI | `convert`, `inspect`, `validate`, `report`, `version` (Typer + Rich) |
 | Ingest | zip-slip, bomb limits, DRM/`encryption.xml` reject |
 | Parse | Direct container/OPF/nav/NCX; EbookLib is a **cross-check only** |
@@ -49,7 +49,8 @@ This is **not greenfield**. The original 2026-08-16 planning session produced th
 4. html5lib is characterization-only (`@pytest.mark.differential`); not a runtime dep.
 5. Phase 3 (P3-1…P3-4) is implemented. Goldens remain open before MVP acceptance; the dedicated P1-4 docs are a documentation follow-up, not a Phase 4 implementation blocker.
 6. Phase 4 corpus findings and tickets are recorded in [phase4-rich-content.md](phase4-rich-content.md). The three local probe EPUBs are characterization inputs only and must not enter git.
-7. Phase 4 implementation is complete locally: P4-1 through P4-6 are integrated; the synthetic suite, deterministic conversion checks, validation, ruff, and mypy gates are green. The three private probe EPUBs were manually reconverted and validated locally; they are not committed or part of CI.
+7. Phase 4 implementation is merged: P4-1 through P4-6 are integrated; the synthetic suite, deterministic conversion checks, validation, ruff, and mypy gates are green. The three private probe EPUBs were manually reconverted and validated locally; they are not committed or part of CI.
+8. Phase 5 scope and acceptance gates are recorded in [phase5-robustness.md](phase5-robustness.md). It is planned work, not a claim about current runtime behavior.
 
 Phase 4 is intentionally conservative: preserve content when a lossless Markdown representation is not proven, keep the existing schema/anchor contract, and do not add html5lib or MathML-to-LaTeX.
 
@@ -61,8 +62,8 @@ Phase 4 is intentionally conservative: preserve content when a lossless Markdown
 | 1 Vertical slice | Closeout coded. Goldens + remaining docs still open. |
 | 2 Link/asset correctness | Coded this pass (P2-1…P2-5). |
 | 3 Semantic reconstruction | Coded this pass (P3-1…P3-4). Hall reconvert is the acceptance check, not a golden. |
-| 4 Rich content | Implemented locally; P4-1…P4-6 integrated and acceptance-tested. Not pushed/merged. |
-| 5 Robustness | html5lib spike only. No runtime fallback. |
+| 4 Rich content | Merged in PR 4 (`0.3.0`); P4-1…P4-6 integrated and acceptance-tested. |
+| 5 Robustness | Planned; detailed in [phase5-robustness.md](phase5-robustness.md). Current tree has only the earlier html5lib characterization spike. |
 | 6 Library integration | Not started. Remote exists; no library convert yet. |
 
 ---
@@ -261,13 +262,13 @@ Duplicate ids, cross-file `../` fragments, cover provenance, missing resources, 
 Evidence table (`epub:type` > landmark > nav > guide > NCX > headings > filename).  
 Case B merge, case C in-file split, virtual parts, conflict reports.
 
-### Phase 4 — rich content (implemented in 0.3.0 on this branch)
+### Phase 4 — rich content (implemented in 0.3.0 and merged in PR 4)
 
 GFM footnotes for simple notes; complex notes preserved; rectangle+header GFM tables; caption policy; MathML fixtures; ruby/bidi.
 
-### Phase 5 — robustness
+### Phase 5 — robustness (planned)
 
-html5lib fallback, malformed suite, optional Docker EPUBCheck, `LEAFMD_CORPUS` private corpus.
+See [phase5-robustness.md](phase5-robustness.md) for the detailed contract. The phase covers approved goldens and recovery baselines, lxml-first optional html5lib recovery for spine content, malformed/hostile archive and XML fixtures, parse-based SVG sanitization, an opt-in no-network Docker EPUBCheck runner, and private-corpus characterization. It does not change the canonical schema, anchor contract, or default offline install.
 
 ### Phase 6 — library integration
 
@@ -281,7 +282,7 @@ MOBI/AZW3/PDF; DRM bypass; cache/incremental; DB; multiprocessing; media overlay
 
 ## 8. Historical ticket stack and follow-ups
 
-The P1/P2 rows below are retained for traceability. They describe the original implementation sequence, not the current queue; Phase 3 is merged on `main` and Phase 4 is implemented on this branch. Remaining work is limited to the explicitly listed goldens, dedicated contract-doc follow-up, optional EPUBCheck, and later robustness/library phases.
+The P1/P2 rows below are retained for traceability. They describe the original implementation sequence, not the current queue; Phase 3 and Phase 4 are merged on `main`. Remaining work is limited to the explicitly listed goldens, dedicated contract-doc follow-up, Phase 5 robustness, and later library phases.
 
 Parent reviews every ticket. One write-scope per agent. No overlapping files.
 
@@ -302,7 +303,7 @@ Parent reviews every ticket. One write-scope per agent. No overlapping files.
 - Isolated parser/renderer spikes
 - Validator unit tests after the contract is written
 - Docs that describe already-frozen behavior
-- Characterization tests that fail against current case-A planner
+- Characterization tests for explicitly planned later behavior
 
 ### Sequence
 
@@ -554,4 +555,4 @@ Already answered and locked:
 4. regenerate-only  
 5. `book.pettee.org`
 
-EPUBCheck is intentionally deferred to the optional P1-5 / Phase 5 work. The current CLI does not accept `--epubcheck`; normal conversion and CI do not depend on Docker or host Java. GitHub remote is created.
+EPUBCheck is intentionally deferred to the optional P1-5 / Phase 5 work described in [phase5-robustness.md](phase5-robustness.md). The current CLI does not accept `--epubcheck`; normal conversion and CI do not depend on Docker or host Java. GitHub remote is created.

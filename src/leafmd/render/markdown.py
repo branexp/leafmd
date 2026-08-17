@@ -170,6 +170,7 @@ def _restore_source_note_hrefs(
     targets: dict[tuple[str, str | None], OutputTarget],
 ) -> None:
     output_path = plan.output_path or ""
+    plan_paths = {split_fragment(source.href)[0] for source in plan.sources}
     reverse: dict[tuple[str, str], tuple[str, str]] = {}
     for (source_path, source_id), target in targets.items():
         if source_id is not None and target.anchor is not None:
@@ -185,7 +186,7 @@ def _restore_source_note_hrefs(
         source_target = reverse.get((path, fragment))
         if source_target is not None:
             source_path, source_id = source_target
-            node.set("href", f"{source_path}#{source_id}")
+            node.set("href", f"#{source_id}" if source_path in plan_paths else f"{source_path}#{source_id}")
 
 
 def _replace_with_token(node: etree._Element, value: str, protected: dict[str, str]) -> None:

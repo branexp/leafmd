@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.1 — 2026-08-17
+
+Pre-Phase 5 correctness fixes.
+
+- Normalize ordinary source line wrapping inside paragraphs while preserving block boundaries, explicit `<br>` breaks, code/pre text, and rich markup.
+- Repair only unambiguous UTF-8 mojibake sequences; preserve legitimate Unicode source characters.
+- Keep canonical empty `src-*` anchors for link and TOC compatibility, and document their zero-width rendered behavior.
+- Remove unused ZIP-bomb and archive-member path filters. Valid-ZIP detection, DRM policy, XML parser protections, and link/HTML/SVG safety remain unchanged.
+
 ## 0.3.0 — 2026-08-17
 
 Phase 4 rich-content reconstruction.

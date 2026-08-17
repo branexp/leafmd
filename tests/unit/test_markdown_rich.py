@@ -61,3 +61,9 @@ def test_mathml_ruby_bidi_and_unsafe_rich_content() -> None:
 def test_rendering_is_deterministic() -> None:
     body = "<p>Wrapped hy-\nphen</p><table><tr><th>A</th></tr><tr><td>x</td></tr></table>"
     assert render(body) == render(body)
+
+
+def test_source_line_wrapping_collapses_inside_paragraphs() -> None:
+    output = render("<p>One\n  two<br/>three</p><p>Next\nline</p>")
+    content = output.split("---\n\n", 1)[1]
+    assert content == "One two  \nthree\n\nNext line\n"

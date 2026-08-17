@@ -2,7 +2,7 @@ from pathlib import Path
 
 from leafmd.convert import convert_epub
 from leafmd.validate.output import validate_book_directory
-from tests.fixtures.epub_builder import make_epub2, make_epub3, make_xxe, write_bytes
+from tests.fixtures.epub_builder import make_custom_epub3, make_epub2, make_epub3, make_xxe, write_bytes
 
 
 def test_convert_epub3(tmp_path: Path) -> None:
@@ -49,3 +49,24 @@ def test_broken_link_is_reported(tmp_path: Path) -> None:
     _book_dir, report = convert_epub(epub, tmp_path / "out-broken")
     codes = {issue.code for issue in report.issues}
     assert "LINK_UNRESOLVED" in codes
+
+
+def test_unicode_and_mojibake_are_rendered_conservatively(tmp_path: Path) -> None:
+    epub = write_bytes(
+        tmp_path / "unicode.epub",
+        make_custom_epub3(
+            title="Unicode",
+            chapters=[
+                (
+                    "ch01",
+                    "ch01.xhtml",
+                    "<h1>Unicode</h1><p>Café — ▪ Tarâscon Â  CafÃ©</p>",
+                )
+            ],
+        ),
+    )
+    book_dir, _report = convert_epub(epub, tmp_path / "out-unicode")
+    text = next((book_dir / "content").glob("*.md")).read_text(encoding="utf-8")
+    assert "Café — ▪ Tarâscon" in text
+    assert "CafÃ©" not in text
+    assert "Â" not in text

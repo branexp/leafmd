@@ -13,12 +13,70 @@ _DROP_CAP_HTML = re.compile(
 _HYPHENATED_LINE = re.compile(r"\b([A-Za-z]{2,})-\s+([a-z]\w*)\b")
 _HEADING = re.compile(r"(?m)^#{1,3}\s")
 _LEADING_BOLD_TITLE = re.compile(r"\A\s*\*\*(?P<title>[^*\n]+?)\*\*\s*(?:\n|\Z)")
+_INLINE_WHITESPACE = re.compile(r"[ \t\r\n\f\v]+")
+_MOJIBAKE_STARTS = frozenset("ÃÂâð")
 
 
 def normalize_text(text: str) -> str:
-    """Apply only unambiguous typography repairs; never rewrite spelling."""
+    """Apply conservative text repairs without rewriting spelling.
 
-    return join_line_hyphens(drop_caps(text))
+    Only recognizable UTF-8-after-single-byte-decoding sequences are repaired;
+    legitimate characters such as ``â`` in a name or ``▪`` are preserved.
+    """
+
+    return join_line_hyphens(drop_caps(repair_mojibake(text)))
+
+
+def collapse_inline_whitespace(text: str) -> str:
+    """Turn source line wrapping inside prose into ordinary spaces."""
+
+    return _INLINE_WHITESPACE.sub(" ", text)
+
+
+def repair_mojibake(text: str) -> str:
+    """Repair only byte sequences that unambiguously round-trip as UTF-8.
+
+    A broad replacement of suspicious-looking Unicode would corrupt legitimate
+    prose. This bounded heuristic handles common accidental UTF-8 → Windows
+    single-byte → Unicode conversions (for example ``Ã©`` and ``Â ``) while
+    leaving incomplete or ordinary words untouched.
+    """
+
+    for _ in range(2):
+        repaired = _repair_mojibake_pass(text)
+        if repaired == text:
+            break
+        text = repaired
+    return text
+
+
+def _repair_mojibake_pass(text: str) -> str:
+    parts: list[str] = []
+    index = 0
+    while index < len(text):
+        if text[index] not in _MOJIBAKE_STARTS:
+            parts.append(text[index])
+            index += 1
+            continue
+        replacement: str | None = None
+        consumed = 0
+        for width in range(min(4, len(text) - index), 1, -1):
+            candidate = text[index : index + width]
+            try:
+                decoded = candidate.encode("cp1252").decode("utf-8")
+            except (UnicodeDecodeError, UnicodeEncodeError):
+                continue
+            if decoded != candidate:
+                replacement = decoded
+                consumed = width
+                break
+        if replacement is None:
+            parts.append(text[index])
+            index += 1
+        else:
+            parts.append(replacement)
+            index += consumed
+    return "".join(parts)
 
 
 def drop_caps(text: str) -> str:

@@ -50,13 +50,13 @@ Private GitHub: [`branexp/leafmd`](https://github.com/branexp/leafmd). Branch of
 
 The initial Phase 1 slice was one spine document per output file. Current `0.3.x` also includes:
 
-- ingest guards (zip-slip, bomb limits, DRM), direct OPF/nav/NCX parsing, and an EbookLib cross-check
+- valid-ZIP inspection, DRM rejection, mimetype diagnostics, direct OPF/nav/NCX parsing, and an EbookLib cross-check
 - evidence-ranked classification, conservative case-B merges, case-C fragment splits, virtual TOC parts, cover discovery, and text cleanup
 - rewritten internal links and namespaced explicit HTML anchors, referenced raster images/SVG, and output validation
 - conservative GFM tables and same-section local footnotes; complex tables and cross-document notes remain faithfully rewritten as raw HTML or links
 - safe preservation of MathML, ruby, and bidi markup without MathML-to-LaTeX conversion
 
-Next planned: [Phase 5 robustness](docs/phase5-robustness.md), covering bounded malformed-XHTML recovery, broader hostile-package fixtures, parse-based SVG sanitization, optional Docker EPUBCheck, and private-corpus characterization.
+Next planned: [Phase 5 robustness](docs/phase5-robustness.md), covering bounded malformed-XHTML recovery, malformed archive/XML fixtures, parse-based SVG sanitization, optional Docker EPUBCheck, and private-corpus characterization.
 
 Still deferred: MOBI/PDF, DRM bypass, cache/incremental conversion, fonts/CSS/audio/video, and a website.
 

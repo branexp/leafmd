@@ -29,7 +29,7 @@ No prev/next/total. Sites derive those from `book.json`. Current section records
 
 ## Leafmd Markdown
 
-UTF-8, YAML frontmatter, CommonMark + GFM tables, ATX headings, fenced code, and raw HTML for explicit anchors, MathML, ruby/bidi markup, and complex tables. Simple same-section notes use GFM footnotes; cross-document or ambiguous notes remain rewritten links and anchors. Unsafe active elements and URL schemes are removed by the converter's rewrite boundary.
+UTF-8, YAML frontmatter, CommonMark + GFM tables, ATX headings, fenced code, and raw HTML for explicit anchors, MathML, ruby/bidi markup, and complex tables. Ordinary source line wrapping inside a paragraph is normalized to spaces; adjacent block paragraphs remain separated, and explicit `<br>` elements remain Markdown hard breaks. Recognizable double-decoding sequences such as `Ã©` and `Â ` are repaired conservatively, while legitimate Unicode such as `â` in a name and `▪` is preserved. Simple same-section notes use GFM footnotes; cross-document or ambiguous notes remain rewritten links and anchors. Unsafe active elements and URL schemes are removed by the converter's rewrite boundary.
 
 Internal EPUB ids are rewritten to namespaced explicit anchors:
 
@@ -37,7 +37,9 @@ Internal EPUB ids are rewritten to namespaced explicit anchors:
 <a id="src-ch01-sec2"></a>
 ```
 
-Do not rely on SSG heading slugs.
+These are empty, zero-width compatibility anchors in rendered HTML. They
+remain in canonical Markdown because links and TOC fragments target them; do
+not rely on SSG heading slugs.
 
 ## Manifest and validation
 

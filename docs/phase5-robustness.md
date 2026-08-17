@@ -6,15 +6,15 @@
 
 **Related plan:** [implementation-plan.md](implementation-plan.md) §7 and §8.
 
-Phase 5 hardens the converter against malformed-but-common EPUB inputs and hostile package structures without changing the canonical book-directory contract. It is a reliability phase, not a new output-format phase.
+Phase 5 hardens the converter against malformed-but-common EPUB inputs and malformed package structures without changing the canonical book-directory contract. It is a reliability phase, not a new output-format phase.
 
 ## 1. User value
 
-A personal library contains books from different publishers and production pipelines. Some are valid EPUB 2/3 packages; others contain recoverable XHTML damage, inconsistent encodings, broken ZIP metadata, malformed SVG, or source-validation errors. Phase 5 should make those cases:
+A personal library contains books from different publishers and production pipelines. Some are valid EPUB 2/3 packages; others contain recoverable XHTML damage, inconsistent encodings, malformed SVG, or source-validation errors. Phase 5 should make those cases:
 
 - recoverable when a safe, deterministic tree can be produced;
 - diagnosable when recovery is lossy or impossible;
-- bounded against resource-exhaustion and path-escape attacks; and
+- explicit about which malformed inputs are recoverable and which are fatal; and
 - reproducible in synthetic tests and private manual characterization.
 
 The default conversion path must remain lightweight and offline. A normal conversion must not require html5lib, Docker, Java, or network access.
@@ -58,7 +58,7 @@ The current parser tries safe lxml XML parsing and lxml HTML recovery. Phase 5 w
 - Spine XHTML/HTML resources may use an optional html5lib-backed recovery candidate only after the lxml result is unusable or fails a defined structural-recovery predicate.
 - lxml remains the first choice whenever it produces a usable tree. html5lib is not a wholesale renderer replacement.
 - The html5lib candidate is converted to the same lxml-based internal tree boundary before slicing, link rewriting, rich transforms, and rendering.
-- The fallback is attempted at most once per source document and is bounded by the existing archive/member limits.
+- The fallback is attempted at most once per source document; no new archive-size or member-path policy is introduced by the fallback.
 - A recovery decision records the parser used and whether recovery occurred. It must not silently hide a malformed source.
 - If html5lib is not installed, normal lxml recovery remains available. If neither parser produces a usable content tree, conversion fails with a stable fatal parse code rather than writing a partial book.
 
@@ -83,10 +83,8 @@ Expand synthetic in-memory fixtures; do not commit real books or EPUB binaries.
 **Archive cases:**
 
 - truncated ZIP and invalid central-directory records;
-- duplicate member names and conflicting file metadata;
-- absolute paths, `../`, backslashes, drive-letter paths, and mixed-separator traversal;
-- symlink-like entries and entries whose normalized output path escapes the book directory;
-- compression-ratio, member-size, total-size, and entry-count boundary conditions;
+- unusual member names, including `../`, absolute, and backslash-containing names, proving they are never used as output paths;
+- duplicate names and conflicting file metadata, with no filesystem extraction;
 - missing or malformed `mimetype`, container, OPF, manifest, spine, nav, or NCX records.
 
 **XML and content cases:**
@@ -166,10 +164,10 @@ It must not copy EPUB content into logs, commit generated trees, or require a we
 These are the Phase 5 contracts to freeze before implementation:
 
 - **FR-1 — Default parser stability:** When a source document is valid or safely recoverable by lxml, the converter shall use the existing lxml path and preserve the Phase 4 output contracts.
-- **FR-2 — Optional recovery:** When a spine content document is structurally unusable after lxml recovery and html5lib is installed, the converter shall try exactly one bounded html5lib candidate and record the recovery path.
+- **FR-2 — Optional recovery:** When a spine content document is structurally unusable after lxml recovery and html5lib is installed, the converter shall try exactly one html5lib candidate and record the recovery path.
 - **FR-3 — Missing recovery dependency:** When html5lib is unavailable, the converter shall not fail installation or normal conversion solely because it is absent; it shall use usable lxml output or emit a stable fatal parse result when no usable tree exists.
 - **FR-4 — Security invariants:** Regardless of parser path, entity expansion, DTD/network access, active HTML, unsafe schemes, output traversal, and unsafe SVG references shall remain blocked.
-- **FR-5 — Archive bounds:** When an archive crosses a configured path, count, size, or compression-ratio limit, the converter shall reject it before writing a book directory.
+- **FR-5 — Archive handling:** Invalid ZIP archives shall fail with a stable fatal code. Members shall be read in place and never extracted; archive entry count, size, compression ratio, and member-name filters are intentionally outside the private-library contract.
 - **FR-6 — EPUBCheck opt-in:** When `--epubcheck` is absent, the converter shall not invoke Docker, Java, EPUBCheck, or network access. When it is present, the converter shall record a bounded source-validation result without changing the canonical output schema.
 - **FR-7 — Determinism:** Given identical input bytes, dependency versions, and options, repeated conversion shall produce equivalent canonical files, anchors, links, assets, and issue codes.
 - **FR-8 — Corpus isolation:** Corpus characterization shall remain opt-in, local, and excluded from git and CI.
@@ -181,7 +179,7 @@ Phase 5 is complete only when all of the following are true:
 1. Approved EPUB 2/3 goldens pass without an unreviewed drift.
 2. Synthetic malformed-XHTML fixtures prove deterministic lxml-first recovery and the optional html5lib path.
 3. The default environment passes with no html5lib, Docker, Java, or network dependency.
-4. Security fixtures cover the broader ZIP, XML/DTD, SVG, no-network, symlink, and output-path cases listed above.
+4. Security fixtures cover invalid ZIP, XML/DTD, SVG, no-network, and output-path cases listed above; they do not claim ZIP-bomb or archive-member path filtering.
 5. A malformed source either yields a validated book with an explicit recovery report or a clear fatal code; no silent empty/partial output is accepted.
 6. `leafmd convert --epubcheck` reports `passed`, `failed`, `unavailable`, `timed_out`, or `error` under `source_validation.epubcheck` and never performs an automatic image pull.
 7. Repeated conversion of the same synthetic fixtures is deterministic.
@@ -197,7 +195,7 @@ Tickets should remain isolated and land as separate PRs unless the parent delibe
 |---|---|---|---|
 | P5-0 | recovery/report contract, golden approval, acceptance harness | docs, golden harness, report contract tests | Phase 4 merged |
 | P5-1 | lxml-first/html5lib recovery | `parse/html.py`, optional dependency metadata, parser tests | P5-0 |
-| P5-2 | malformed archive/XML/security fixtures and boundary fixes | ingest/parse security modules, synthetic fixtures/tests | P5-0 |
+| P5-2 | malformed archive/XML/security fixtures | ingest/parse security modules, synthetic fixtures/tests | P5-0 |
 | P5-3 | parse-based SVG sanitizer | `transform/assets.py`, SVG fixtures/tests | P5-0 |
 | P5-4 | optional Docker EPUBCheck | CLI/convert/report integration and mocked runner tests | P5-0 |
 | P5-5 | private corpus runner and characterization notes | local-only tooling/docs; no corpus data | P5-1 through P5-4 |

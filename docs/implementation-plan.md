@@ -1,6 +1,6 @@
 # leafmd — Final Implementation Plan
 
-**Status:** Phase 3 is merged on `main` (`a6dee61`, 0.2.0), and Phase 4 is merged in PR 4 (`6557909`, 0.3.0). Phase 5 is planned in [phase5-robustness.md](phase5-robustness.md); no Phase 5 production implementation has started.
+**Status:** Phase 3 is merged on `main` (`a6dee61`, 0.2.0), and Phase 4 is merged in PR 4 (`6557909`, 0.3.0). Pre-Phase 5 correctness fixes are versioned `0.3.1` on this working branch. Phase 5 is planned in [phase5-robustness.md](phase5-robustness.md); no Phase 5 production implementation has started.
 **Date:** 2026-08-17
 **Repo:** `/home/clawdbot/clawd/projects/leafmd` → private `https://github.com/branexp/leafmd`  
 **This file is the working build plan.** Use it instead of the original chat plan. GitHub/PR workflow: [github-workflow.md](github-workflow.md).
@@ -27,9 +27,9 @@ This is **not greenfield**. The original 2026-08-16 planning session produced th
 
 | Area | State |
 |---|---|
-| Identity | `leafmd` 0.3.0 on `main`, AGPL-3.0-or-later, setuptools `src/` layout |
+| Identity | `leafmd` 0.3.1 on the current fix branch (`0.3.0` baseline on `main`), AGPL-3.0-or-later, setuptools `src/` layout |
 | CLI | `convert`, `inspect`, `validate`, `report`, `version` (Typer + Rich) |
-| Ingest | zip-slip, bomb limits, DRM/`encryption.xml` reject |
+| Ingest | valid-ZIP inspection, DRM/`encryption.xml` reject, mimetype diagnostics |
 | Parse | Direct container/OPF/nav/NCX; EbookLib is a **cross-check only** |
 | Plan | Case A default; B merge consecutive un-navved spine files; C split fragment-targeted headings; virtual parts TOC-only |
 | Classify | Evidence-ranked (`epub:type` > landmark > nav > guide > NCX > headings > filename/id); types include cover/preface/about-author/other |
@@ -39,7 +39,7 @@ This is **not greenfield**. The original 2026-08-16 planning session produced th
 | Output | `book.json`, `toc.json`, `conversion-report.json`, `index.md`, `toc.md`, `content/`, `assets/images/` |
 | Docs | architecture, canonical-format, development, security, Copilot review instructions |
 | CI | uv venv + ruff + mypy + pytest on 3.11/3.12 |
-| Tests | EPUB 2/3, XXE, zip-slip, DRM, fragments, schemes, assets, validator schema/footnotes, planner B/C, cover, classify, textnorm, and synthetic rich-content fixtures |
+| Tests | EPUB 2/3, invalid ZIP, XXE, DRM, fragments, schemes, assets, validator schema/footnotes, planner B/C, cover, classify, textnorm, and synthetic rich-content fixtures |
 
 ### What is still open
 
@@ -99,7 +99,7 @@ Do not reopen these during implementation.
 
 ```text
 EPUB ZIP
-  → ingest guards (paths, bombs, DRM)
+  → archive inspection (ZIP validity, DRM, mimetype diagnostics)
   → direct ZIP/OPF/nav/NCX parse
   → optional EbookLib cross-check (spine nonempty)
   → NormalizedPublication
@@ -124,7 +124,7 @@ src/leafmd/
   errors.py
   report.py
   model/                     # public IR; no ebooklib
-  ingest/archive.py          # hostile ZIP
+  ingest/archive.py          # ZIP validity / DRM inspection
   parse/
     ebooklib_adapter.py      # import ebooklib here only
     package.py               # container.xml + OPF
@@ -232,7 +232,7 @@ leafmd version
 
 Well-formed EPUB 2/3, one XHTML ≈ one file:
 
-- ingest guards + direct OPF/nav/NCX + EbookLib cross-check
+- archive inspection + direct OPF/nav/NCX + EbookLib cross-check
 - spine-ordered files, nav titles when they map 1:1
 - markdownify ATX
 - referenced images + SVG + cover
@@ -291,7 +291,7 @@ Parent reviews every ticket. One write-scope per agent. No overlapping files.
 - Architecture and module boundaries
 - Canonical JSON / frontmatter / anchor contract
 - `linear="no"` and TOC-fragment policy (already frozen in §2)
-- Security policy (ZIP limits, XML entities, URL schemes, SVG, EPUBCheck execution)
+- Security policy (XML entities, URL schemes, SVG, EPUBCheck execution, and the no-extraction archive boundary)
 - CLI names, exit codes, `--strict` promotion set
 - Approving goldens
 - Planner B/C algorithm (Phase 3)
@@ -468,7 +468,7 @@ One write-scope per agent. The parent integration, `0.2.0` metadata update, chan
 | Layer | Now | Next |
 |---|---|---|
 | Unit | slug, href, classify, anchors, schemes, nav/OPF, assets, report codes, planner B/C, cover, textnorm, tables, notes, rich markup | additional edge cases and goldens |
-| Synthetic | EPUB2/3, XXE, zip-slip, DRM, broken links, assets, fragments, hostile SVG, planner B/C, and rich-content fixtures | remaining security/metadata edge cases |
+| Synthetic | EPUB2/3, invalid ZIP, XXE, DRM, broken links, assets, fragments, hostile SVG, planner B/C, and rich-content fixtures | remaining security/metadata edge cases |
 | Golden | none | EPUB2 + EPUB3 first; more in later phases |
 | Public | none | optional `@pytest.mark.online`, pinned SHA, license check |
 | Private | none | `LEAFMD_CORPUS`, skip if unset |
@@ -492,7 +492,7 @@ pytest -m "not online and not private and not differential and not epubcheck"
 
 ### Security tests still owed
 
-Already covered: basic ZIP slip, size/count/ratio limits, DRM, XXE non-expansion, unsafe URL schemes, active HTML removal, hostile SVG cases, and output validation. Still owed: broader ZIP path variants (backslashes, absolute paths, drive letters), malformed/bad ZIP variants, DTD/billion-laughs coverage, no-network assertions, symlink entries, and additional output path-escape cases.
+Already covered: valid-ZIP detection, DRM, XXE non-expansion, unsafe URL schemes, active HTML removal, hostile SVG cases, and output validation. Still owed: malformed/bad ZIP variants, duplicate-member characterization, DTD/billion-laughs coverage, no-network assertions, and additional output path-escape cases. ZIP-bomb limits and archive-member path rejection are intentionally not part of the product contract.
 
 ### Later fixture batches (non-overlapping)
 

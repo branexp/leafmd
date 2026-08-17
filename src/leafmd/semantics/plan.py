@@ -37,11 +37,19 @@ def plan_sections(publication: NormalizedPublication, report: ConversionReport) 
     by_path: dict[str, list[_NavInfo]] = {}
     for info in infos:
         by_path.setdefault(split_fragment(info.href)[0], []).append(info)
-    spine = [
-        e
-        for e in publication.spine
-        if _resource_for_entry(publication, e) is not None and _convertible(_resource_for_entry(publication, e))
-    ]
+    spine: list[SpineEntry] = []
+    for e in publication.spine:
+        resource = _resource_for_entry(publication, e)
+        if resource is None:
+            report.add(
+                IssueSeverity.ERROR,
+                "PLAN_MISSING_SPINE_ITEM",
+                f"Spine idref not in manifest: {e.idref}",
+                where=e.idref,
+            )
+            continue
+        if _convertible(resource):
+            spine.append(e)
     plans: list[SectionPlan] = []
     index = 0
     pos = 0

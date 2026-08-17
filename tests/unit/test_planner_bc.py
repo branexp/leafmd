@@ -34,6 +34,15 @@ def test_case_b_many_files_one_nav_entry_merge(tmp_path) -> None:
     assert len(list((book_dir / "content").glob("*.md"))) == 1
 
 
+def test_case_c_toc_json_keeps_fragment_section_ids(tmp_path) -> None:
+    import json
+
+    epub = write_bytes(tmp_path / "many.epub", make_many_headings_one_file())
+    book_dir, _report = convert_epub(epub, tmp_path / "out-toc-c")
+    toc = json.loads((book_dir / "toc.json").read_text(encoding="utf-8"))
+    assert [node["section_id"] for node in toc["nodes"]] == ["sec-001", "sec-002"]
+
+
 def test_case_b_desired_merge(tmp_path) -> None:
     epub = write_bytes(tmp_path / "split.epub", make_split_chapter_files())
     book_dir, _report = convert_epub(epub, tmp_path / "out-desired-b")

@@ -169,13 +169,13 @@ def _toc_json(
     plans: list[SectionPlan],
     targets: TargetMap,
 ) -> dict[str, Any]:
-    by_href = {split_fragment(plan.sources[0].href)[0]: plan for plan in plans if plan.sources}
+    by_href = {split_fragment(plan.sources[0].href): plan for plan in plans if plan.sources}
 
     def convert(nodes: list[Any], provenance: str) -> list[dict[str, Any]]:
         out: list[dict[str, Any]] = []
         for node in nodes:
-            path, _fragment = split_fragment(node.href) if node.href else (None, None)
-            plan = by_href.get(path) if path else None
+            source = split_fragment(node.href) if node.href else None
+            plan = by_href.get(source) if source else None
             href = _toc_href(node.href, targets)
             if href is None and plan and plan.output_path:
                 href = plan.output_path
@@ -287,12 +287,12 @@ def _render_toc_nodes(
     targets: TargetMap,
     depth: int,
 ) -> list[str]:
-    by_href = {split_fragment(plan.sources[0].href)[0]: plan for plan in plans if plan.sources}
+    by_href = {split_fragment(plan.sources[0].href): plan for plan in plans if plan.sources}
     lines: list[str] = []
     indent = "  " * depth
     for node in nodes:
-        path = split_fragment(node.href)[0] if node.href else None
-        plan = by_href.get(path) if path else None
+        source = split_fragment(node.href) if node.href else None
+        plan = by_href.get(source) if source else None
         label = node.title
         href = _toc_href(node.href, targets)
         if href is None and plan and plan.output_path:

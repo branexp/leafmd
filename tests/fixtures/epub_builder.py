@@ -12,6 +12,8 @@ MIN_PNG = (
     b"\x00\x01\x01\x00\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82"
 )
 
+MIN_JPEG = b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00\xff\xd9"
+
 MIN_SVG = b'<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><rect width="1" height="1"/></svg>'
 
 HOSTILE_SVG = (
@@ -195,6 +197,33 @@ def make_epub2() -> bytes:
             "OEBPS/cover.png": MIN_PNG,
         }
     )
+
+
+def make_guide_cover_book(*, xhtml_cover: bool = False, jpeg: bool = False) -> bytes:
+    """Build an EPUB whose only cover declaration is an OPF guide reference."""
+    image_name = "cover.jpg" if jpeg else "cover.png"
+    image_type = "image/jpeg" if jpeg else "image/png"
+    cover_href = "cover.xhtml" if xhtml_cover else image_name
+    members = {
+        "mimetype": b"application/epub+zip",
+        "META-INF/container.xml": CONTAINER_XML,
+        "EPUB/content.opf": f'''<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="2.0">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>Guide Cover</dc:title></metadata>
+  <manifest>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="cover-doc" href="cover.xhtml" media-type="application/xhtml+xml"/>
+    <item id="cover-image" href="{image_name}" media-type="{image_type}"/>
+  </manifest>
+  <spine><itemref idref="chapter"/></spine>
+  <guide><reference type="cover" title="Front Cover" href="{cover_href}"/></guide>
+</package>
+'''.encode(),
+        "EPUB/chapter.xhtml": _xhtml("Chapter", "<h1>Chapter</h1><p>Text.</p>"),
+        "EPUB/cover.xhtml": _xhtml("Cover", f'<img src="{image_name}" alt="cover"/>'),
+        f"EPUB/{image_name}": MIN_JPEG if jpeg else MIN_PNG,
+    }
+    return _write_epub(members)
 
 
 def make_zip_slip() -> bytes:

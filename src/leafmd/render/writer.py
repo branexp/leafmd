@@ -15,6 +15,8 @@ from leafmd.parse.html import parse_document
 from leafmd.render.markdown import render_section
 from leafmd.transform.assets import collect_and_copy_assets
 from leafmd.transform.links import TargetMap, build_target_map, rewrite_tree
+from leafmd.transform.merge import merge_documents
+from leafmd.transform.slice import slice_document
 from leafmd.transform.textnorm import description_to_markdown
 
 
@@ -35,10 +37,20 @@ def write_book_directory(
     for plan in plans:
         if plan.role != "file" or not plan.output_path:
             continue
-        source = plan.sources[0]
-        path, _fragment = split_fragment(source.href)
-        resource = next((item for item in publication.resources.values() if item.href == path), None)
-        if resource is None or resource.content is None:
+        roots = []
+        source_paths = []
+        for source in plan.sources:
+            path, _fragment = split_fragment(source.href)
+            resource = next((item for item in publication.resources.values() if item.href == path), None)
+            if resource is None or resource.content is None:
+                continue
+            root = parse_document(resource.content)
+            if source.start_id or source.end_id:
+                root = slice_document(root, source.start_id, source.end_id)
+            rewrite_tree(root, path, targets, asset_map, report, plan.output_path)
+            roots.append(root)
+            source_paths.append(path)
+        if not roots:
             from leafmd.model.issues import IssueSeverity
 
             report.add(
@@ -48,8 +60,7 @@ def write_book_directory(
                 where=plan.id,
             )
             continue
-        root = parse_document(resource.content)
-        rewrite_tree(root, path, targets, asset_map, report, plan.output_path)
+        root = merge_documents(roots)
         markdown = render_section(root, plan, targets.by_href)
         dest = book_dir / plan.output_path
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -181,7 +192,8 @@ def _toc_json(
             )
         return out
 
-    tree = convert(publication.nav_toc, "nav")
+    combined = _union_toc(publication.nav_toc, publication.ncx_toc)
+    tree = convert(combined, "nav+ncx")
     if not tree:
         tree = convert(publication.ncx_toc, "ncx")
     if not tree:
@@ -225,7 +237,7 @@ def _index_markdown(
 
 
 def _toc_markdown(publication: NormalizedPublication, plans: list[SectionPlan], targets: TargetMap) -> str:
-    nodes = publication.nav_toc or publication.ncx_toc
+    nodes = _union_toc(publication.nav_toc, publication.ncx_toc)
     if nodes:
         lines = ["# Contents", ""]
         lines.extend(_render_toc_nodes(nodes, plans, targets, depth=0))
@@ -235,6 +247,37 @@ def _toc_markdown(publication: NormalizedPublication, plans: list[SectionPlan], 
         if plan.output_path:
             lines.append(f"- [{plan.title}]({plan.output_path})")
     return "\n".join(lines) + "\n"
+
+
+def _union_toc(primary: list[Any], secondary: list[Any]) -> list[Any]:
+    """Union navigation trees, retaining nav labels and order on collisions."""
+    if not primary:
+        return list(secondary)
+    result = list(primary)
+    keys = {_toc_key(node) for node in result}
+    for node in secondary:
+        key = _toc_key(node)
+        if key in keys:
+            existing = next(item for item in result if _toc_key(item) == key)
+            children = _union_toc(list(existing.children), list(node.children))
+            if children != list(existing.children):
+                from leafmd.model.publication import NavNode
+
+                result[result.index(existing)] = NavNode(
+                    existing.title,
+                    existing.href,
+                    existing.kind,
+                    existing.semantic_type,
+                    tuple(children),
+                )
+        else:
+            result.append(node)
+            keys.add(key)
+    return result
+
+
+def _toc_key(node: Any) -> tuple[str, str | None]:
+    return split_fragment(node.href)[0], split_fragment(node.href)[1] if node.href else None
 
 
 def _render_toc_nodes(

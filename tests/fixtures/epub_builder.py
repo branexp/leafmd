@@ -317,7 +317,14 @@ def make_custom_epub3(
     for item_id, href, html in chapters:
         chapter_items.append(f'    <item id="{item_id}" href="{href}" media-type="application/xhtml+xml"/>')
         members[f"EPUB/{href}"] = _xhtml(item_id, html)
-    nav_lis = "\n".join(f'        <li><a href="{href}">{label}</a></li>' for label, href in nav_items)
+    if nav_items and nav_items[0][1].startswith("#") and len(nav_items) > 1:
+        label, href = nav_items[0]
+        nested = "\n".join(
+            f'          <li><a href="{child_href}">{child_label}</a></li>' for child_label, child_href in nav_items[1:]
+        )
+        nav_lis = f'        <li><a href="{href}">{label}</a><ol>\n{nested}\n        </ol></li>'
+    else:
+        nav_lis = "\n".join(f'        <li><a href="{href}">{label}</a></li>' for label, href in nav_items)
     spine_refs = []
     for item_id, linear in spine_items:
         extra = "" if linear else ' linear="no"'

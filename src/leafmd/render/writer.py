@@ -38,7 +38,7 @@ def write_book_directory(
         if plan.role != "file" or not plan.output_path:
             continue
         roots = []
-        source_paths = []
+        missing_path = plan.sources[0].href if plan.sources else plan.id
         for source in plan.sources:
             path, _fragment = split_fragment(source.href)
             resource = next((item for item in publication.resources.values() if item.href == path), None)
@@ -49,14 +49,13 @@ def write_book_directory(
                 root = slice_document(root, source.start_id, source.end_id)
             rewrite_tree(root, path, targets, asset_map, report, plan.output_path)
             roots.append(root)
-            source_paths.append(path)
         if not roots:
             from leafmd.model.issues import IssueSeverity
 
             report.add(
                 IssueSeverity.ERROR,
                 "RENDER_MISSING_SOURCE",
-                f"No bytes for section source {path}",
+                f"No bytes for section source {missing_path}",
                 where=plan.id,
             )
             continue
@@ -277,7 +276,9 @@ def _union_toc(primary: list[Any], secondary: list[Any]) -> list[Any]:
 
 
 def _toc_key(node: Any) -> tuple[str, str | None]:
-    return split_fragment(node.href)[0], split_fragment(node.href)[1] if node.href else None
+    if not node.href:
+        return "", None
+    return split_fragment(node.href)
 
 
 def _render_toc_nodes(

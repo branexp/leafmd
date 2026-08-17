@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from lxml import etree
@@ -18,6 +19,7 @@ from leafmd.semantics.classify import classify_section
 from leafmd.transform.slug import slugify
 
 CONTENT_TYPES = {"application/xhtml+xml", "text/html", "application/xml", "text/xml"}
+_SPLIT_SUFFIX = re.compile(r"^(?P<base>.+?)(?P<suffix>(?:[_-](?:a|b|part[-_]?[\d]+|[\d]+)|[ab]))$", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -31,6 +33,7 @@ class _NavInfo:
 
 def plan_sections(publication: NormalizedPublication, report: ConversionReport) -> list[SectionPlan]:
     infos = _nav_infos(publication)
+    ncx_infos = _nav_infos(publication, source="ncx")
     by_path: dict[str, list[_NavInfo]] = {}
     for info in infos:
         by_path.setdefault(split_fragment(info.href)[0], []).append(info)
@@ -68,25 +71,54 @@ def plan_sections(publication: NormalizedPublication, report: ConversionReport) 
                     fragment = item.fragment
                     assert fragment is not None
                     title = item.title or headings.get(fragment, "") or resource.id
-                    plans.append(_make_plan(publication, resource, item, title, index, sibling_types, end_id=end_id))
+                    plans.append(
+                        _make_plan(
+                            publication,
+                            resource,
+                            item,
+                            title,
+                            index,
+                            sibling_types,
+                            ncx_infos,
+                            end_id=end_id,
+                        )
+                    )
                     sibling_types.append(plans[-1].type)
                 pos += 1
                 continue
-        # A single navigation entry owns following spine documents until the next
-        # independently navigated document (the common split-chapter pattern).
+        # Case B: a navigated file may absorb only obvious continuations of the
+        # same document (in1 + in1_b). Unrelated front-matter files stay separate.
         group = [resource]
-        if len(entries) == 1 and entry.linear:
+        if len(entries) <= 1 and entry.linear:
             look = pos + 1
             while look < len(spine):
-                nxt = _resource_for_entry(publication, spine[look])
-                if nxt is None or by_path.get(nxt.href) or not spine[look].linear:
+                nxt_entry = spine[look]
+                nxt = _resource_for_entry(publication, nxt_entry)
+                if nxt is None or by_path.get(nxt.href) or not nxt_entry.linear:
+                    break
+                if not _is_continuation(resource, nxt):
                     break
                 group.append(nxt)
                 look += 1
         index += 1
         nav_item: _NavInfo | None = entries[0] if entries else None
-        title = (nav_item.title if nav_item else None) or _heading_fallback(resource.content) or resource.id
-        plan = _make_plan(publication, resource, nav_item, title, index, sibling_types, extra=group[1:])
+        title = (
+            (nav_item.title if nav_item else None)
+            or ("Cover" if _looks_like_cover(resource) else None)
+            or ("Table of Contents" if _looks_like_toc(resource) else None)
+            or _heading_fallback(resource.content)
+            or resource.id
+        )
+        plan = _make_plan(
+            publication,
+            resource,
+            nav_item,
+            title,
+            index,
+            sibling_types,
+            ncx_infos,
+            extra=group[1:],
+        )
         plans.append(plan)
         sibling_types.append(plan.type)
         pos += len(group)
@@ -102,19 +134,20 @@ def _make_plan(
     title: str,
     order: int,
     sibling_types: list[str],
+    ncx_infos: list[_NavInfo],
     *,
     end_id: str | None = None,
     extra: list[Resource] | None = None,
 ) -> SectionPlan:
     headings = _heading_texts(resource.content)
+    path = resource.href
     semantic_type, evidence = classify_section(
         title,
         resource,
+        landmark=_landmark_for(publication, path, item),
         nav_label=item.title if item else None,
-        ncx_title=next(
-            (x.title for x in _nav_infos(publication, source="ncx") if split_fragment(x.href)[0] == resource.href),
-            None,
-        ),
+        guide_type=_guide_type_for(publication, path),
+        ncx_title=next((x.title for x in ncx_infos if split_fragment(x.href)[0] == path), None),
         headings=headings,
         book_title=publication.metadata.title,
         sibling_types=sibling_types,
@@ -140,16 +173,36 @@ def _make_plan(
 
 
 def _nav_infos(publication: NormalizedPublication, source: str | None = None) -> list[_NavInfo]:
-    result = []
+    result: list[_NavInfo] = []
+    seen: set[tuple[str, str | None]] = set()
     trees = [("nav", publication.nav_toc), ("ncx", publication.ncx_toc)]
     for kind, tree in trees:
         if source and source != kind:
             continue
         for node in flatten_nav(tree):
-            if node.href:
-                path, fragment = split_fragment(node.href)
-                result.append(_NavInfo(node.title, node.href, fragment, node.semantic_type, kind))
+            if not node.href:
+                continue
+            path, fragment = split_fragment(node.href)
+            key = (path, fragment)
+            if key in seen:
+                continue
+            seen.add(key)
+            result.append(_NavInfo(node.title, node.href, fragment, node.semantic_type, kind))
     return result
+
+
+def _guide_type_for(publication: NormalizedPublication, path: str) -> str | None:
+    for node in publication.guide:
+        if node.href and split_fragment(node.href)[0] == path and node.semantic_type:
+            return node.semantic_type
+    return None
+
+
+def _landmark_for(publication: NormalizedPublication, path: str, item: _NavInfo | None) -> str | None:
+    for node in flatten_nav(publication.landmarks):
+        if node.href and split_fragment(node.href)[0] == path and node.semantic_type:
+            return node.semantic_type
+    return item.semantic_type if item else None
 
 
 def _resource_for_entry(publication: NormalizedPublication, entry: SpineEntry) -> Resource | None:
@@ -188,3 +241,53 @@ def _heading_texts(content: bytes | None) -> list[str]:
 def _heading_fallback(content: bytes | None) -> str | None:
     values = _heading_texts(content)
     return values[0] if values else None
+
+
+def _looks_like_toc(resource: Resource) -> bool:
+    name = f"{resource.id} {resource.href}".lower()
+    return "toc" in re.split(r"[^a-z0-9]+", name)
+
+
+def _looks_like_cover(resource: Resource) -> bool:
+    name = f"{resource.id} {resource.href}".lower()
+    return "cover" in re.split(r"[^a-z0-9]+", name)
+
+
+def _stem(href: str) -> str:
+    return href.rsplit("/", 1)[-1].rsplit(".", 1)[0].lower()
+
+
+def _split_identity(stem: str) -> tuple[str, str | None]:
+    match = _SPLIT_SUFFIX.match(stem)
+    if match is None:
+        return stem, None
+    return match.group("base"), match.group("suffix").lower()
+
+
+def _suffix_kind(suffix: str | None) -> tuple[str, int] | None:
+    if suffix is None:
+        return None
+    token = suffix.lstrip("_-")
+    if token in {"a", "b"}:
+        return "letter", ord(token) - ord("a")
+    number = re.fullmatch(r"(?:part[-_]?)?([\d]+)", token)
+    if number:
+        return "number", int(number.group(1))
+    return None
+
+
+def _is_continuation(previous: Resource, following: Resource) -> bool:
+    """Recognize only adjacent filenames that explicitly represent a split."""
+
+    previous_base, previous_suffix = _split_identity(_stem(previous.href))
+    following_base, following_suffix = _split_identity(_stem(following.href))
+    if previous_base != following_base or following_suffix is None:
+        return False
+
+    next_kind = _suffix_kind(following_suffix)
+    if next_kind is None:
+        return False
+    previous_kind = _suffix_kind(previous_suffix)
+    if previous_kind is None:
+        return True
+    return previous_kind[0] == next_kind[0] and next_kind[1] == previous_kind[1] + 1

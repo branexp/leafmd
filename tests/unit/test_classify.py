@@ -79,3 +79,29 @@ def test_guide_type_has_priority_over_heading() -> None:
     semantic_type, evidence = classify_section("Chapter 1", resource, guide_type="preface")
     assert semantic_type == "preface"
     assert evidence[0].source == "guide"
+
+
+def test_guide_cover_type_maps_without_regex() -> None:
+    resource = Resource(id="cvi", href="cover.xhtml", media_type="application/xhtml+xml")
+    semantic_type, evidence = classify_section(
+        ".", resource, guide_type="other.ms-coverimage-standard", book_title="My Book"
+    )
+    assert semantic_type == "cover"
+    assert evidence[0].source == "guide"
+
+
+def test_numbered_title_beats_later_introduction_heading() -> None:
+    resource = Resource(id="c14", href="c14.xhtml", media_type="application/xhtml+xml")
+    semantic_type, evidence = classify_section(
+        "XIV - Pythagorean Mathematics",
+        resource,
+        headings=("XIV", "Introduction"),
+    )
+    assert semantic_type == "chapter"
+    assert evidence[0].source == "title"
+
+
+def test_table_of_contents_is_other() -> None:
+    resource = Resource(id="toc", href="toc.xhtml", media_type="application/xhtml+xml")
+    semantic_type, _ = classify_section("Table of Contents", resource)
+    assert semantic_type == "other"

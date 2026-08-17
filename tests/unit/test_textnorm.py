@@ -9,6 +9,7 @@ from leafmd.transform.textnorm import (
 
 def test_drop_caps_markdown_and_html() -> None:
     assert drop_caps("**T**hen") == "Then"
+    assert drop_caps("***T**hunder") == "Thunder"
     assert drop_caps('<span class="dropcap">T</span>hen') == "Then"
     assert drop_caps("<b>T</b>hen") == "Then"
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from html.parser import HTMLParser
 
-_DROP_CAP_MARKDOWN = re.compile(r"(?<![\w*])(?:\*\*|__)([A-Za-z])(?:\*\*|__)(?=[A-Za-z])")
+_DROP_CAP_MARKDOWN = re.compile(r"(?<![\w*])(?:\*{1,3}|_{1,3})([A-Za-z])(?:\*{1,3}|_{1,3})(?=[A-Za-z])")
 _DROP_CAP_HTML = re.compile(
     r"<(?P<tag>span|b|strong)\b(?P<attrs>[^>]*)>(?P<char>[A-Za-z])</(?P=tag)>(?=[A-Za-z])",
     re.IGNORECASE,

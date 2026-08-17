@@ -9,7 +9,8 @@ from lxml import etree
 from leafmd.model.issues import IssueSeverity
 from leafmd.model.publication import NavNode, Resource
 from leafmd.model.report import ConversionReport
-from leafmd.parse.hrefs import posix_join
+from leafmd.parse.hrefs import posix_join, split_fragment
+from leafmd.parse.html import parse_document
 from leafmd.parse.xmlutil import attr, child_text, local_name, parse_xml
 
 
@@ -95,6 +96,40 @@ def guide_to_nodes(guide: list[tuple[str, str, str]]) -> list[NavNode]:
         NavNode(title=title or ref_type or href, href=href, kind="guide", semantic_type=ref_type or None)
         for title, href, ref_type in guide
     ]
+
+
+def parse_html_toc(resource: Resource) -> list[NavNode]:
+    """Collect in-document table-of-contents links when EPUB nav is missing."""
+    if resource.content is None:
+        return []
+    try:
+        root = parse_document(resource.content)
+    except Exception:  # noqa: BLE001 - malformed HTML TOC is non-fatal
+        return []
+    seen: set[tuple[str, str | None]] = set()
+    nodes: list[NavNode] = []
+    for node in root.iter():
+        if local_name(getattr(node, "tag", "")) != "a":
+            continue
+        href = attr(node, "href")
+        title = child_text(node).strip()
+        if not href or not title:
+            continue
+        from urllib.parse import urlparse
+
+        parsed = urlparse(href)
+        if parsed.scheme or parsed.netloc:
+            continue
+        abs_href = posix_join(resource.href, href)
+        path, fragment = split_fragment(abs_href)
+        if path == resource.href and not fragment:
+            continue
+        key = (path, fragment)
+        if key in seen:
+            continue
+        seen.add(key)
+        nodes.append(NavNode(title=title, href=abs_href, kind="html-toc"))
+    return nodes
 
 
 def flatten_nav(nodes: list[NavNode]) -> list[NavNode]:

@@ -1,6 +1,6 @@
 # leafmd — Final Implementation Plan
 
-**Status:** Phase 2 is on `main`. Brandon authorized Phase 3 (2026-08-16) before goldens/P1-4. Goldens + remaining contract docs remain pre-MVP.  
+**Status:** Phase 3 coded on `feat/phase3-semantic-reconstruction` (0.2.0). Goldens + remaining contract docs remain pre-MVP.
 **Date:** 2026-08-16  
 **Repo:** `/home/clawdbot/clawd/projects/leafmd` → private `https://github.com/branexp/leafmd`  
 **This file is the working build plan.** Use it instead of the original chat plan. GitHub/PR workflow: [github-workflow.md](github-workflow.md).
@@ -27,19 +27,19 @@ This is **not greenfield**. The original 2026-08-16 planning session produced th
 
 | Area | State |
 |---|---|
-| Identity | `leafmd` 0.1.0, AGPL-3.0-or-later, setuptools `src/` layout |
+| Identity | `leafmd` 0.2.0, AGPL-3.0-or-later, setuptools `src/` layout |
 | CLI | `convert`, `inspect`, `validate`, `report`, `version` (Typer + Rich) |
 | Ingest | zip-slip, bomb limits, DRM/`encryption.xml` reject |
 | Parse | Direct container/OPF/nav/NCX; EbookLib is a **cross-check only** |
-| Plan | Case A only: one spine XHTML → one Markdown file |
-| Classify | Title/filename regex rules; default `chapter` |
-| Render | markdownify ATX + simple tables + raw MathML/complex tables |
+| Plan | Case A default; B merge consecutive un-navved spine files; C split fragment-targeted headings; virtual parts TOC-only |
+| Classify | Evidence-ranked (`epub:type` > landmark > nav > guide > NCX > headings > filename/id); types include cover/preface/about-author/other |
+| Render | markdownify ATX + drop-cap/hyphen cleanup + simple tables + raw MathML/complex tables |
 | Links | Target map + namespaced `src-…` anchors; same-file / `../` / nav fragments; scheme filter; duplicate-id first-wins |
 | Assets | Referenced raster/SVG + cover; filename collisions; hostile SVG strip; no remote fetch |
 | Output | `book.json`, `toc.json`, `conversion-report.json`, `index.md`, `toc.md`, `content/`, `assets/images/` |
 | Docs | architecture, canonical-format, development, security, Copilot review instructions |
 | CI | uv venv + ruff + mypy + pytest on 3.11/3.12 |
-| Tests | EPUB 2/3, XXE, zip-slip, DRM, fragments, schemes, assets, validator schema, planner B/C xfail |
+| Tests | EPUB 2/3, XXE, zip-slip, DRM, fragments, schemes, assets, validator schema, planner B/C, cover, classify, textnorm |
 
 ### What is still open
 
@@ -47,9 +47,9 @@ This is **not greenfield**. The original 2026-08-16 planning session produced th
 2. Remaining contract docs (P1-4): section-planning, links-and-anchors, validation, fixtures.
 3. Optional `--epubcheck` (P1-5). Not an MVP blocker.
 4. html5lib is characterization-only (`@pytest.mark.differential`); not a runtime dep.
-5. Planner B/C xfail fixtures exist. Phase 3 implementation is now authorized (Brandon, 2026-08-16) even though goldens/P1-4 are still open.
+5. Phase 3 (P3-1…P3-4) is implemented. Goldens/P1-4 remain open and are still owed before MVP.
 
-**Phase 3 is in progress.** Do not start Phase 4 tables/math. Goldens (P1-2/P1-3) and contract docs (P1-4) remain owed before MVP.
+**Do not start Phase 4 tables/math.** Goldens (P1-2/P1-3) and contract docs (P1-4) remain owed before MVP.
 
 ### Phase scoreboard
 
@@ -58,7 +58,7 @@ This is **not greenfield**. The original 2026-08-16 planning session produced th
 | 0 Planning | Done. Locked decisions in §2 supersede the old five questions. |
 | 1 Vertical slice | Closeout coded. Goldens + remaining docs still open. |
 | 2 Link/asset correctness | Coded this pass (P2-1…P2-5). |
-| 3 Semantic reconstruction | In progress (P3-1…P3-4). |
+| 3 Semantic reconstruction | Coded this pass (P3-1…P3-4). Hall reconvert is the acceptance check, not a golden. |
 | 4 Rich content | Not started (table/math stubs only). |
 | 5 Robustness | html5lib spike only. No runtime fallback. |
 | 6 Library integration | Not started. Remote exists; no library convert yet. |

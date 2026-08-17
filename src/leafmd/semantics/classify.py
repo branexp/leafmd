@@ -9,7 +9,11 @@ from leafmd.model.publication import Resource
 from leafmd.model.section import SemanticEvidence
 
 # Deliberately ordered from specific to broad within a single evidence source.
+_NUMBERED_CHAPTER_TITLE = re.compile(r"^\s*(?:chapter\s+)?(?:\d+|[IVXLCDM]+)(?:\s*[-–—:.)]\s*|\s+|$)", re.I)
+
 _RULES: tuple[tuple[re.Pattern[str], str, float], ...] = (
+    (re.compile(r"\bcover\b", re.I), "cover", 0.6),
+    (re.compile(r"\btable\s+of\s+contents\b", re.I), "other", 0.55),
     (re.compile(r"\b(title\s*page|titlepage)\b", re.I), "title-page", 0.55),
     (re.compile(r"\b(copyright)\b", re.I), "copyright-page", 0.55),
     (re.compile(r"\b(dedication)\b", re.I), "dedication", 0.5),
@@ -52,6 +56,16 @@ _PROPERTY_TYPES = {
 }
 
 
+def _mapped_type(value: str | None) -> str | None:
+    if not value:
+        return None
+    lowered = value.lower()
+    if lowered in {"cover", "other.ms-coverimage-standard", "other.ms-coverimage"}:
+        return "cover"
+    token = lowered.split("#")[-1].split(":")[-1]
+    return _PROPERTY_TYPES.get(lowered) or _PROPERTY_TYPES.get(token)
+
+
 def _match(value: str | None) -> tuple[str, float] | None:
     if not value:
         return None
@@ -90,22 +104,40 @@ def classify_section(
         if semantic_type:
             return semantic_type, _evidence(semantic_type, "epub:type", 0.95, prop)
 
-    for source, value, confidence in (
+    explicit_sources = (
         ("landmark", landmark, 0.9),
         ("nav", nav_label, 0.8),
         ("guide", guide_type, 0.75),
         ("ncx", ncx_title, 0.7),
+    )
+    for source, value, confidence in explicit_sources:
+        mapped = _mapped_type(value)
+        if mapped:
+            return mapped, _evidence(mapped, source, confidence, value or "")
+
+    # A numbered primary title wins over a later subsection such as
+    # "Introduction". Keep the first document heading as the only heading
+    # fallback so secondary headings cannot reclassify the section.
+    for source, value in (
+        ("nav", nav_label),
+        ("ncx", ncx_title),
+        ("title", title),
+        ("heading", headings[0] if headings else None),
     ):
+        if value and _NUMBERED_CHAPTER_TITLE.match(value):
+            return "chapter", _evidence("chapter", source, 0.82, value)
+
+    for source, value, confidence in explicit_sources:
         match = _match(value)
         if match:
             semantic_type, rule_confidence = match
             return semantic_type, _evidence(semantic_type, source, confidence + rule_confidence / 100, value or "")
 
-    # A caller may provide headings separately; title is retained as the first
-    # heading for backwards compatibility with classify_from_title.
-    heading_values = list(headings)
-    if title and title not in heading_values:
-        heading_values.insert(0, title)
+    heading_values: list[str] = []
+    if title:
+        heading_values.append(title)
+    if headings and headings[0] not in heading_values:
+        heading_values.append(headings[0])
     for heading in heading_values:
         match = _match(heading)
         if match:
@@ -121,6 +153,8 @@ def classify_section(
     if re.search(r"about[-_ ]?the[-_ ]?author|" + boundary + r"ata(?:[._\-\s]|$)", lowered):
         return "about-author", _evidence("about-author", "filename", 0.65, filename)
     if re.search(r"books[-_ ]?by|also[-_ ]?available|" + boundary + r"bm\d+(?:[._\-\s]|$)", lowered):
+        return "other", _evidence("other", "filename", 0.6, filename)
+    if re.search(boundary + r"(?:toc|contents)(?:[._\-\s]|$)", lowered):
         return "other", _evidence("other", "filename", 0.6, filename)
     if re.search(boundary + r"(?:prf|fm\d+)(?:[._\-\s]|$)", lowered):
         return "preface", _evidence("preface", "filename", 0.6, filename)

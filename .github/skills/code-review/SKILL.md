@@ -25,7 +25,7 @@ Use these labels in comments. Do not try to block merge.
 
 - **Blocker:** security hole, DRM bypass, network I/O, zip-slip, XXE/DTD, raw EPUB ids in TOC, EbookLib import above the adapter, copyrighted EPUB committed, output path escape
 - **Must-fix:** broken Phase 1 contract (case A planner, missing `src-…` anchors, `posix_join` dropping fragments, dropped `linear="no"`, missing report code, CI-breaking types)
-- **Should-fix:** missing regression test, write-scope leak, unstable assertion on message text, golden update mixed into a behavior PR
+- **Should-fix:** missing regression test, write-scope leak, unstable assertion on message text, golden update mixed into a behavior PR, behavior PR missing version bump + CHANGELOG entry
 - **Nit:** style only if ruff/mypy would fail. Skip taste nits.
 
 If nothing rises to should-fix or above, say so in one short summary. Do not pad.
@@ -33,9 +33,10 @@ If nothing rises to should-fix or above, say so in one short summary. Do not pad
 ## Pass 1 — scope and intent
 
 - Confirm one §8 ticket (or an explicit hygiene PR). Flag unrelated file churn.
-- Production PRs should not silently rewrite goldens, planner B/C, site/SWAG, or PyPI.
+- Production PRs should not silently rewrite goldens, site/SWAG, or PyPI.
 - Docs-only PRs should not change `src/`.
-- Test-only PRs may add failing characterization tests. Do not “fix” them by implementing Phase 3.
+- Test-only PRs may add failing characterization tests. Phase 3 split/merge is allowed only when the PR/ticket is an explicit P3 ticket.
+- Behavior PRs that change convert output or public CLI **must** bump the version in both `pyproject.toml` and `src/leafmd/__init__.py` (same value) and add a `CHANGELOG.md` entry under that version. Flag as should-fix if either is missing. Docs-only and test-only PRs do not bump unless the ticket says so.
 
 ## Pass 2 — hostile input
 
@@ -59,7 +60,7 @@ Flag if the diff:
 
 - imports `ebooklib` outside `leafmd.parse.ebooklib_adapter`
 - uses `book.toc` as truth
-- implements in-file split or multi-file merge without a Phase 3 ticket
+- implements in-file split or multi-file merge without an explicit P3 ticket
 - emits heading slugs instead of `<a id="src-<stem>-<id>"></a>`
 - writes original EPUB fragment ids into `toc.json` / `toc.md`
 - joins hrefs without preserving `#fragment`

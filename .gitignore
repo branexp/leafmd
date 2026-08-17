@@ -67,3 +67,5 @@ ENV/
 # Private book corpus — never commit copyrighted EPUBs
 .corpus/
 private-corpus/
+*.epub
+/tmp-convert/

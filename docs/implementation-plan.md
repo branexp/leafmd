@@ -1,6 +1,6 @@
 # leafmd — Final Implementation Plan
 
-**Status:** Phase 1 closeout + Phase 2 link/asset correctness are coded. MVP still needs goldens, remaining contract docs, and optional `--epubcheck`.  
+**Status:** Phase 2 is on `main`. Brandon authorized Phase 3 (2026-08-16) before goldens/P1-4. Goldens + remaining contract docs remain pre-MVP.  
 **Date:** 2026-08-16  
 **Repo:** `/home/clawdbot/clawd/projects/leafmd` → private `https://github.com/branexp/leafmd`  
 **This file is the working build plan.** Use it instead of the original chat plan. GitHub/PR workflow: [github-workflow.md](github-workflow.md).
@@ -47,9 +47,9 @@ This is **not greenfield**. The original 2026-08-16 planning session produced th
 2. Remaining contract docs (P1-4): section-planning, links-and-anchors, validation, fixtures.
 3. Optional `--epubcheck` (P1-5). Not an MVP blocker.
 4. html5lib is characterization-only (`@pytest.mark.differential`); not a runtime dep.
-5. Planner cases B/C are documented by xfail tests. Do not implement until Phase 3.
+5. Planner B/C xfail fixtures exist. Phase 3 implementation is now authorized (Brandon, 2026-08-16) even though goldens/P1-4 are still open.
 
-**Do not start Phase 3 implementation until goldens + P1-4 land. P2-1 through P2-5 are in this pass.**
+**Phase 3 is in progress.** Do not start Phase 4 tables/math. Goldens (P1-2/P1-3) and contract docs (P1-4) remain owed before MVP.
 
 ### Phase scoreboard
 
@@ -58,7 +58,7 @@ This is **not greenfield**. The original 2026-08-16 planning session produced th
 | 0 Planning | Done. Locked decisions in §2 supersede the old five questions. |
 | 1 Vertical slice | Closeout coded. Goldens + remaining docs still open. |
 | 2 Link/asset correctness | Coded this pass (P2-1…P2-5). |
-| 3 Semantic reconstruction | Not started (title-rule classifier only; B/C xfail fixtures exist). |
+| 3 Semantic reconstruction | In progress (P3-1…P3-4). |
 | 4 Rich content | Not started (table/math stubs only). |
 | 5 Robustness | html5lib spike only. No runtime fallback. |
 | 6 Library integration | Not started. Remote exists; no library convert yet. |
@@ -405,6 +405,51 @@ approve goldens, then stop. Do not start Phase 3 implementation.
 - **Write:** fixtures + failing tests that document the desired contract
 - **Work:** one XHTML / many chapters; many XHTML / one chapter; virtual part
 - **Avoid:** implementing heuristics in this pass
+
+### Phase 3 tickets (authorized 2026-08-16)
+
+Brandon asked to implement Phase 3 now. Goldens/P1-4 stay open and are **not** blockers for this pass. Do **not** implement Phase 4 tables/math/notes.
+
+One write-scope per agent. Parent integrates, bumps to **0.2.0**, updates `CHANGELOG.md`, reconverts the Hall EPUB under `/tmp` + gitignored `tmp-convert/`, then opens one PR.
+
+#### P3-1 — Cover discovery
+
+- **Owner:** isolated implementer
+- **Write:** `src/leafmd/parse/package.py`, `tests/unit/test_cover.py`, and a new builder in `tests/fixtures/epub_builder.py` only if needed
+- **Work:** resolve `cover_id` from EPUB2 `<meta name="cover">`, EPUB3 `properties="cover-image"`, then OPF guide (`cover` / `other.ms-coverimage-standard`), then manifest item id `cover` / `coverimagestandard` when that item is an image. If the cover item is an XHTML document, follow its first local image. If still missing after a referenced cover image exists, emit `COVER_MISSING`.
+- **Verify:** synthetic guide-only cover lands in `book.json.cover` and `assets/images/`; existing EPUB2/3 cover tests still pass
+- **Avoid:** `writer.py`, planner, classifier, Hall EPUB, version bump
+
+#### P3-2 — Evidence-ranked classification
+
+- **Owner:** isolated implementer
+- **Write:** `src/leafmd/semantics/classify.py`, optional new `src/leafmd/semantics/evidence.py`, `tests/unit/test_classify.py`
+- **Work:** rank evidence `epub:type` > landmark > nav label > guide > NCX > in-document headings > filename/id. Add types: `cover`, `preface`, `about-author`, `other` (back-matter ads). Do not classify a document as `chapter` when the only title is the book title or `.`. Keep rules explainable (no ML).
+- **Verify:** preface/cover/about-author unit tests; existing preface/default tests updated to the new API if needed
+- **Avoid:** `plan.py`, `package.py`, renderer, version bump
+
+#### P3-3 — Planner B/C + virtual parts + TOC union
+
+- **Owner:** isolated implementer; start **after** P3-2 lands or rebase onto it
+- **Write:** `src/leafmd/semantics/plan.py`, `src/leafmd/semantics/__init__.py`, `src/leafmd/transform/slice.py`, `src/leafmd/transform/merge.py`, `src/leafmd/render/writer.py` TOC helpers only, `tests/unit/test_planner_bc.py`
+- **Work:** keep case A default. Case B: merge consecutive spine XHTML that share one nav/NCX chapter entry (Hall index `in1` + `in1_b`). Case C: split one XHTML with multiple top-level chapter headings / nav fragments into multiple files. Virtual parts: TOC node with children and `section_id: null` (no content file). TOC tree is nav ∪ NCX (nav titles win on the same href; union adds nav-only nodes such as a preface). Un-xfail the P2-5 desired tests and keep a case-A regression.
+- **Verify:** `pytest tests/unit/test_planner_bc.py` all pass (no xfail); `linear="no"` still emits `PLAN_NONLINEAR` as its own file
+- **Avoid:** `package.py`, `classify.py` internals, `markdown.py`, goldens, Hall EPUB, version bump
+
+#### P3-4 — Text cleanup (not Phase 4 tables)
+
+- **Owner:** isolated implementer
+- **Write:** `src/leafmd/transform/textnorm.py`, `src/leafmd/render/markdown.py`, `src/leafmd/render/writer.py` `_index_markdown` only, `tests/unit/test_textnorm.py`
+- **Work:** (1) drop-cap / first-letter: `**T**hen` → `Then` when a single bold/styled first letter is followed by the rest of the word. (2) end-of-line hyphenation: `seclu- sive` → `seclusive` only for `[A-Za-z]{2,}-\s+[a-z]`. (3) promote a leading bold title block to an ATX heading when the section has no `h1`–`h3`. (4) convert OPF description HTML in `index.md` (`<p>`, `<BR>`, `<i>`) to Markdown; do not emit a literal truncated `...` unless the source itself ends that way. Do **not** “fix” OCR (`tluee`, `modem`).
+- **Verify:** unit tests for each transform; existing convert tests still pass
+- **Avoid:** planner, classifier, `package.py`, tables/MathML, version bump
+
+#### P3-5 — Parent integration (not a subagent)
+
+- **Owner:** parent
+- **Write:** `pyproject.toml` version, `src/leafmd/__init__.py` `__version__`, `CHANGELOG.md`, plan/docs scoreboard
+- **Work:** merge P3-1…P3-4, run full quality gate, reconvert the Hall EPUB to `/tmp/leafmd-secret-teachings` and gitignored `tmp-convert/secret-teachings`, confirm cover + titles + preface + drop-cap + `index.md` description, then open one PR
+- **Avoid:** committing the EPUB or converted tree
 
 ---
 

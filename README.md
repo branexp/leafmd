@@ -37,26 +37,26 @@ leafmd convert BOOK.epub --output out/the-book
 leafmd inspect BOOK.epub --json
 leafmd validate out/the-book
 leafmd report out/the-book
+leafmd version
 ```
 
-Exit codes: `0` ok, `1` completed with errors, `2` fatal, `3` usage.
+Exit codes: `0` ok or warnings, `1` completed with errors, `2` fatal or CLI usage error, `3` reserved for future application-level usage errors.
 
 ## Repo
 
 Private GitHub: [`branexp/leafmd`](https://github.com/branexp/leafmd). Branch off `main` → PR → squash merge. See [docs/github-workflow.md](docs/github-workflow.md).
 
-## Phase 1 scope
+## Current behavior
 
-Well-formed EPUB 2/3, mostly one XHTML document per file:
+The initial Phase 1 slice was one spine document per output file. Current `0.3.x` also includes:
 
-- ingest guards (zip-slip, bombs, DRM)
-- EbookLib adapter + our OPF / nav / NCX parse
-- spine-ordered Markdown via markdownify
-- referenced raster images + SVG
-- rewritten internal links and explicit HTML anchors
-- `inspect` / `validate`
+- ingest guards (zip-slip, bomb limits, DRM), direct OPF/nav/NCX parsing, and an EbookLib cross-check
+- evidence-ranked classification, conservative case-B merges, case-C fragment splits, virtual TOC parts, cover discovery, and text cleanup
+- rewritten internal links and namespaced explicit HTML anchors, referenced raster images/SVG, and output validation
+- conservative GFM tables and same-section local footnotes; complex tables and cross-document notes remain faithfully rewritten as raw HTML or links
+- safe preservation of MathML, ruby, and bidi markup without MathML-to-LaTeX conversion
 
-Not in v1: MOBI/PDF, DRM, cache, incremental convert, semantic split/merge beyond spine+nav titles, fonts/CSS/AV, a website.
+Still deferred: MOBI/PDF, DRM bypass, cache/incremental conversion, fonts/CSS/audio/video, optional Docker EPUBCheck (not currently a CLI option), and a website.
 
 ## License
 

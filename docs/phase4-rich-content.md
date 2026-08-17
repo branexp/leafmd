@@ -24,7 +24,7 @@ The probes establish that a green validation report does not prove rich-content 
 ### Goals
 
 1. Classify tables before rendering and convert only safe rectangular tables to GFM.
-2. Preserve complex tables, captions, and cell content without loss.
+2. Preserve complex tables, caption text, and cell content without loss; inline markup inside captions is currently normalized to text.
 3. Recognize standard EPUB note metadata and conservative publisher-specific note patterns.
 4. Convert only simple, local, unambiguous notes to deterministic GFM footnotes.
 5. Preserve complex or cross-document notes as rewritten links/HTML with anchors intact.
@@ -45,11 +45,13 @@ The probes establish that a green validation report does not prove rich-content 
 
 ### Pipeline placement
 
-Rich-content handling runs after section slicing/merging and link/asset rewriting, but before Markdown rendering:
+Rich-content handling runs after planned roots have been sliced, rewritten, and merged, but before Markdown rendering:
 
 ```text
-parse → plan/slice/merge → build TargetMap/assets
-     → rewrite links/assets/active content
+parse → plan → build TargetMap/assets
+     → slice each source section
+     → rewrite links/assets/active content per source
+     → merge planned roots
      → classify/normalize tables and notes
      → render Markdown + raw HTML
      → write canonical directory → validate
@@ -107,12 +109,14 @@ A table is **GFM-safe** only when all of these hold:
 
 Safe tables are normalized only enough to remove known harmless wrappers, then rendered as GFM. A table with spans, ambiguous headers, block content, or rich content that markdownify could damage remains raw HTML after link/asset rewriting.
 
+The classifier records deterministic rejection reasons such as `missing-rows`, `nested-table`, `rowspan-or-colspan`, `non-rectangular`, `missing-predictable-header`, `ambiguous-header`, and `non-inline-safe-cell-content` for diagnostics. These reason strings are implementation diagnostics, not a stable output API.
+
 Caption policy:
 
-- preserve every caption;
-- for a GFM-safe table, emit the caption as one deterministic Markdown paragraph immediately before the table (including its number when present);
-- if the caption cannot be represented faithfully as inline Markdown, keep the complete table, including `<caption>` or publisher-equivalent caption markup, as raw HTML;
-- never silently discard or duplicate captions.
+- preserve every caption's text exactly once;
+- for a GFM-safe table, emit the caption as one deterministic plain-text Markdown paragraph immediately before the table (including its number when present);
+- the current classifier normalizes inline caption markup to text rather than claiming to preserve rich caption markup; richer caption preservation remains a follow-up;
+- never silently discard or duplicate caption text.
 
 The Springer-like class forms observed in the probes (`.Table`, `.Caption`, `.CaptionNumber`, `.CaptionContent`, `.Figure`, `.Equation`) are fixture targets, not special permission to discard generic semantic HTML.
 
@@ -134,7 +138,7 @@ Text with a note[^note-1].
 [^note-1]: Inline note text.
 ```
 
-The exact label sanitizer and numbering are owned by the notes ticket and must be deterministic across repeated conversions. Complex, ambiguous, or cross-section/cross-document notes remain ordinary rewritten links and explicit anchors (or raw HTML where required). In particular, the Economics probe's `Notes.xhtml` relationships must not be collapsed into a local footnote that loses navigation back to the source.
+The exact label sanitizer and numbering are owned by the notes ticket and must be deterministic across repeated conversions. Complex, ambiguous, or cross-section/cross-document notes remain ordinary rewritten links and explicit anchors (or raw HTML where required). Return links are preserved by ordinary link rewriting rather than represented as a separate structured relationship. In particular, the Economics probe's `Notes.xhtml` relationships must not be collapsed into a local footnote that loses navigation back to the source.
 
 ### 5.3 MathML
 
@@ -193,7 +197,7 @@ Tickets are intentionally non-overlapping. Each coding subagent receives an isol
 ### P4-5 — Renderer integration (after P4-2/P4-3/P4-4 review)
 
 **Writes:** `src/leafmd/render/markdown.py`, `tests/unit/test_markdown_rich.py`.  
-**Work:** invoke the decisions, emit GFM tables/footnotes, retain raw HTML, preserve captions and rich markup, and keep existing text normalization outside protected nodes.  
+**Work:** invoke the decisions, emit GFM tables/footnotes, retain raw HTML, preserve caption text and rich markup, and keep existing text normalization outside protected nodes.
 **Must not redesign:** manifests, planner, TargetMap, or security policy.  
 **Verification:** deterministic rendered snippets plus all existing tests.
 
@@ -206,7 +210,7 @@ Tickets are intentionally non-overlapping. Each coding subagent receives an isol
 ### P4-7 — Parent acceptance and integration
 
 **Writes:** parent-owned version/changelog/scoreboard only.  
-**Work:** integrate commits in dependency order, run quality gates, reconvert all three probes under `/tmp`, compare structural metrics, and decide whether any remaining defects are Phase 5 or later. Do not commit probe EPUBs or generated trees.
+**Work:** integrate commits in dependency order, run quality gates, reconvert all three probes under `/tmp`, compare structural metrics, and decide whether any remaining defects are Phase 5 or later. The probe reconversions are manual characterization, not CI tests. Do not commit probe EPUBs or generated trees.
 
 ## 7. Delegation and dependency graph
 
@@ -239,11 +243,11 @@ After integration:
 
 - full pytest passes with the existing expected skip(s);
 - two consecutive conversions of every synthetic fixture are byte-identical;
-- all three probe EPUBs convert and validate successfully;
+- all three private probe EPUBs convert and validate successfully in manual local characterization; the probes are not committed or part of CI;
 - simple rectangular probe tables become GFM where the contract permits; spanning/ambiguous tables remain raw without cell loss;
 - local simple notes become valid GFM footnotes; Economics-style cross-document notes retain rewritten forward/return links;
 - MathML/ruby/bidi synthetic markup survives; dangerous active content and unsafe schemes are removed;
-- `book.json`, `toc.json`, and `schema_version` remain compatible;
+- `book.json.schema_version == 1`, `toc.json.schema_version == 1`, the five index files remain unchanged, and the report stats keys remain compatible; Phase 4 adds no footnote manifest;
 - no unresolved links or missing generated anchors are introduced.
 
 ## 9. Risks and mitigations

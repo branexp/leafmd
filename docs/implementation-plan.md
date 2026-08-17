@@ -1,7 +1,7 @@
 # leafmd — Final Implementation Plan
 
 **Status:** Phase 3 is merged on `main` (`a6dee61`, 0.2.0). Phase 4 is implemented and acceptance-tested locally on `feat/phase4-rich-content`; it has not been pushed or merged.
-**Date:** 2026-08-16  
+**Date:** 2026-08-17
 **Repo:** `/home/clawdbot/clawd/projects/leafmd` → private `https://github.com/branexp/leafmd`  
 **This file is the working build plan.** Use it instead of the original chat plan. GitHub/PR workflow: [github-workflow.md](github-workflow.md).
 
@@ -19,7 +19,7 @@
 
 ---
 
-## 1. Honest current state (2026-08-16)
+## 1. Honest current state (2026-08-17)
 
 This is **not greenfield**. The original 2026-08-16 planning session produced the architecture; a later pass scaffolded the private repo and a Phase 1 vertical slice.
 
@@ -27,29 +27,29 @@ This is **not greenfield**. The original 2026-08-16 planning session produced th
 
 | Area | State |
 |---|---|
-| Identity | `leafmd` 0.2.0, AGPL-3.0-or-later, setuptools `src/` layout |
+| Identity | `leafmd` 0.3.0 on this Phase 4 branch (`0.2.0` on `main`), AGPL-3.0-or-later, setuptools `src/` layout |
 | CLI | `convert`, `inspect`, `validate`, `report`, `version` (Typer + Rich) |
 | Ingest | zip-slip, bomb limits, DRM/`encryption.xml` reject |
 | Parse | Direct container/OPF/nav/NCX; EbookLib is a **cross-check only** |
 | Plan | Case A default; B merge consecutive un-navved spine files; C split fragment-targeted headings; virtual parts TOC-only |
 | Classify | Evidence-ranked (`epub:type` > landmark > nav > guide > NCX > headings > filename/id); types include cover/preface/about-author/other |
-| Render | markdownify ATX + drop-cap/hyphen cleanup + simple tables + raw MathML/complex tables |
+| Render | markdownify ATX + text cleanup; conservative GFM tables/captions and local footnotes; raw complex tables/cross-document notes; safe MathML/ruby/bidi preservation |
 | Links | Target map + namespaced `src-…` anchors; same-file / `../` / nav fragments; scheme filter; duplicate-id first-wins |
 | Assets | Referenced raster/SVG + cover; filename collisions; hostile SVG strip; no remote fetch |
 | Output | `book.json`, `toc.json`, `conversion-report.json`, `index.md`, `toc.md`, `content/`, `assets/images/` |
 | Docs | architecture, canonical-format, development, security, Copilot review instructions |
 | CI | uv venv + ruff + mypy + pytest on 3.11/3.12 |
-| Tests | EPUB 2/3, XXE, zip-slip, DRM, fragments, schemes, assets, validator schema, planner B/C, cover, classify, textnorm |
+| Tests | EPUB 2/3, XXE, zip-slip, DRM, fragments, schemes, assets, validator schema/footnotes, planner B/C, cover, classify, textnorm, and synthetic rich-content fixtures |
 
 ### What is still open
 
 1. No approved goldens (P1-2 / P1-3 still owed before MVP acceptance).
-2. Remaining contract docs (P1-4): section-planning, links-and-anchors, validation, fixtures.
-3. Optional `--epubcheck` (P1-5). Not an MVP blocker.
+2. Dedicated P1-4 contract docs (section-planning, links-and-anchors, validation, fixtures) remain a follow-up; the current architecture, canonical-format, security, and Phase 4 contracts describe implemented behavior.
+3. Optional EPUBCheck runner (P1-5); not an MVP blocker, and the current CLI does not accept `--epubcheck`.
 4. html5lib is characterization-only (`@pytest.mark.differential`); not a runtime dep.
-5. Phase 3 (P3-1…P3-4) is implemented. Goldens/P1-4 remain open and are still owed before MVP.
+5. Phase 3 (P3-1…P3-4) is implemented. Goldens remain open before MVP acceptance; the dedicated P1-4 docs are a documentation follow-up, not a Phase 4 implementation blocker.
 6. Phase 4 corpus findings and tickets are recorded in [phase4-rich-content.md](phase4-rich-content.md). The three local probe EPUBs are characterization inputs only and must not enter git.
-7. Phase 4 implementation is complete locally: P4-1 through P4-6 are integrated; the synthetic suite, deterministic conversion checks, three probe reconversions, validation, ruff, and mypy gates are green.
+7. Phase 4 implementation is complete locally: P4-1 through P4-6 are integrated; the synthetic suite, deterministic conversion checks, validation, ruff, and mypy gates are green. The three private probe EPUBs were manually reconverted and validated locally; they are not committed or part of CI.
 
 Phase 4 is intentionally conservative: preserve content when a lossless Markdown representation is not proven, keep the existing schema/anchor contract, and do not add html5lib or MathML-to-LaTeX.
 
@@ -80,15 +80,15 @@ Do not reopen these during implementation.
 7. **Runtime:** Python 3.11+, CLI-only, flags only, no config file, no daemon.
 8. **Output shape:** flat `content/` + `assets/images/` + the five index files. Hierarchy lives in `toc.json`.
 9. **Parser truth:** our OPF/nav/NCX parse is authoritative. EbookLib never supplies `book.toc`. Nothing above `leafmd.parse.ebooklib_adapter` imports `ebooklib`.
-10. **Phase 1 planner:** case A only (one spine document → one file). Cases B/C wait for Phase 3.
+10. **Planner:** case A remains the default (one spine document → one file), with the implemented Phase 3 case-B merges, case-C fragment splits, and TOC-only virtual parts documented in the Phase 3 section below.
 11. **`linear="no"`:** include as its own file and emit `PLAN_NONLINEAR` info. Do not delete. Reading order stays spine order.
 12. **Anchors:** namespaced explicit HTML `<a id="src-<stem>-<id>"></a>` is the compatibility contract. Astro/github-slugger heading ids are not.
 13. **TOC fragments:** rewrite through the **same** global target map as content links. Never emit original EPUB ids in `toc.json` / `toc.md`.
 14. **Links:** keep `http` / `https` / `mailto`. Drop `javascript:`, `data:`, `file:`, `vbscript:`, and unknown schemes. No network I/O.
 15. **Assets:** copy referenced JPEG/PNG/GIF/WebP/SVG and the cover. Skip fonts/CSS/JS/audio/video/SMIL with `MEDIA_SKIPPED`.
 16. **Math:** preserve MathML as raw HTML. No MathML→LaTeX in v1.
-17. **Notes / rich tables / ruby / bidi:** Phase 4. Do not pretend they exist in Phase 1 docs.
-18. **EPUBCheck:** optional `--epubcheck` only. Store under `source_validation`. Never mix into converter issues.
+17. **Notes / rich tables / ruby / bidi:** implemented in Phase 4 under the conservative contracts in `docs/phase4-rich-content.md`. Do not promise richer behavior than those contracts.
+18. **EPUBCheck:** planned only; the current CLI does not accept `--epubcheck`. If implemented later, store results under `source_validation` and never mix them into converter issues.
 19. **Trust:** `untrusted EPUB → leafmd → library-trusted book dir → site sanitizer → public HTML`. Converter output is not a public-HTML trust boundary.
 20. **Toolchain:** uv, setuptools, ruff, pytest, mypy. No Pandoc, no Pydantic-everywhere, no tox/nox, no PyPI until asked.
 
@@ -102,11 +102,13 @@ EPUB ZIP
   → direct ZIP/OPF/nav/NCX parse
   → optional EbookLib cross-check (spine nonempty)
   → NormalizedPublication
-  → SectionPlanner (Phase 1: spine item → file)
-  → TargetMap + asset copy
-  → rewrite tree
+  → SectionPlanner (case A default; Phase 3 B/C merges/splits + virtual TOC parts)
+  → TargetMap + asset collection
+  → slice each source section
+  → rewrite each source tree
+  → merge planned roots
   → rich-content classify/normalize (Phase 4)
-  → LeafmdConverter (markdownify)
+  → LeafmdConverter (markdownify + safe raw HTML)
   → BookDirectory writer
   → OutputValidator → conversion-report.json
 ```
@@ -130,8 +132,8 @@ src/leafmd/
     hrefs.py
     xmlutil.py               # resolve_entities=False, no_network
   semantics/
-    classify.py              # title/filename rules (Phase 1)
-    plan.py                  # case A
+    classify.py              # evidence-ranked classification
+    plan.py                  # case A default + Phase 3 B/C
     evidence.py              # Phase 3
   transform/
     links.py                 # TargetMap + rewrite
@@ -149,7 +151,7 @@ src/leafmd/
 
 ### Invariants
 
-- Semantic/render code sees only `leafmd.model` types.
+- Public IR and orchestration use `leafmd.model` types; parsing/render transforms may operate on lxml trees at documented boundaries. EbookLib objects never cross the adapter boundary.
 - Target map is built **before** render. It is the single anchor contract.
 - Writer emits filesystem + manifests. Validator re-reads the directory and does not trust in-memory plans blindly.
 - Determinism: `sec-001`, `{order:03d}-{type}-{slug}.md`, sorted JSON keys, no wall-clock timestamps in Markdown.
@@ -171,13 +173,13 @@ src/leafmd/
     images/
 ```
 
-- `book.json` is the bibliographic + section manifest.
-- `toc.json` is the navigation tree (`nav` > `ncx` > inferred from spine).
+- `book.json` is the schema-v1 bibliographic + planned-section manifest.
+- `toc.json` is the schema-v1 navigation tree formed from nav ∪ NCX; nav labels/order win on matching targets, with inferred spine entries only as a final fallback.
 - Frontmatter is non-redundant: `id`, `title`, `type`, `order`, `source[]`. No prev/next/total.
 - Relative asset paths from `content/*.md` are `../assets/images/…`.
-- Leafmd Markdown: UTF-8, YAML frontmatter, CommonMark, GFM tables, ATX headings, fenced code, raw HTML for explicit anchors / MathML / complex tables.
+- Leafmd Markdown: UTF-8, YAML frontmatter, CommonMark, GFM tables/footnotes, ATX headings, fenced code, and raw HTML for explicit anchors, MathML, ruby/bidi, and complex tables.
 
-Full field notes live in `docs/canonical-format.md`. Expand that doc during P1-4; do not invent Astro/MDX fields.
+Full field notes live in `docs/canonical-format.md`. The validator checks the five index files, manifest keys, section/assets paths, links/fragments, anchors, TOC targets, and GFM footnote definitions. Do not invent Astro/MDX fields.
 
 ---
 
@@ -196,14 +198,14 @@ These are real bugs in current code, not future features.
 | D7 | pytest collection path | `pyproject.toml` | **Fixed** in P1-0. |
 | D8 | mypy 15 errors | package/navigation/markdown/validate | **Fixed** in P1-1. |
 | D9 | SVG sanitize is regex-only | `transform/assets.py` | **Hardened** in P2-2 (script/event/handler/foreignObject/external href). Parse-based sanitize still Phase 5. |
-| D10 | Classifier ignores `epub:type` / landmarks | `semantics/classify.py` | Leave for Phase 3; document as title-rule only. |
+| D10 | Classifier ignores `epub:type` / landmarks | `semantics/classify.py` | **Fixed** in Phase 3 evidence-ranked classification. |
 
 ---
 
 ## 6. CLI contract
 
 ```text
-leafmd convert BOOK.epub [--output DIR] [--strict] [--epubcheck] [--verbose] [--debug]
+leafmd convert BOOK.epub [--output DIR] [--strict] [--verbose] [--debug]
 leafmd inspect BOOK.epub [--json]
 leafmd validate BOOKDIR [--json]
 leafmd report BOOKDIR
@@ -214,18 +216,18 @@ leafmd version
 |---|---|
 | 0 | ok / warnings only |
 | 1 | completed with errors |
-| 2 | fatal |
-| 3 | usage |
+| 2 | fatal or CLI usage error |
+| 3 | reserved for future application-level usage errors |
 
 - v1 is single-book. Recursive batch is Phase 6.
 - `--strict` promotes `LINK_UNRESOLVED`, `ASSET_MISSING`, `RENDER_MISSING_SOURCE` to errors (already sketched in `convert.py`).
-- `--epubcheck` is optional and not a Phase 1 acceptance blocker.
+- `--epubcheck` is planned only and is not currently accepted by the CLI; if added later it remains an optional, non-blocking source validation path.
 
 ---
 
 ## 7. Phases
 
-### Phase 1 — vertical slice (closeout now)
+### Phase 1 — vertical slice (historical baseline; closeout code remains in tree)
 
 Well-formed EPUB 2/3, one XHTML ≈ one file:
 
@@ -250,16 +252,16 @@ Well-formed EPUB 2/3, one XHTML ≈ one file:
 7. The five index files exist.
 8. Unit + golden tests pass via `python -m pytest`. mypy and ruff are clean.
 
-### Phase 2 — link/asset correctness
+### Phase 2 — link/asset correctness (implemented in 0.1.0)
 
 Duplicate ids, cross-file `../` fragments, cover provenance, missing resources, stronger SVG sanitize, report completeness, scheme filtering, validator schema checks.
 
-### Phase 3 — semantic reconstruction
+### Phase 3 — semantic reconstruction (implemented in 0.2.0)
 
 Evidence table (`epub:type` > landmark > nav > guide > NCX > headings > filename).  
 Case B merge, case C in-file split, virtual parts, conflict reports.
 
-### Phase 4 — rich content
+### Phase 4 — rich content (implemented in 0.3.0 on this branch)
 
 GFM footnotes for simple notes; complex notes preserved; rectangle+header GFM tables; caption policy; MathML fixtures; ruby/bidi.
 
@@ -277,7 +279,9 @@ MOBI/AZW3/PDF; DRM bypass; cache/incremental; DB; multiprocessing; media overlay
 
 ---
 
-## 8. Next coding pass — tickets and subagent cut-points
+## 8. Historical ticket stack and follow-ups
+
+The P1/P2 rows below are retained for traceability. They describe the original implementation sequence, not the current queue; Phase 3 is merged on `main` and Phase 4 is implemented on this branch. Remaining work is limited to the explicitly listed goldens, dedicated contract-doc follow-up, optional EPUBCheck, and later robustness/library phases.
 
 Parent reviews every ticket. One write-scope per agent. No overlapping files.
 
@@ -316,7 +320,7 @@ P2-2 assets                parallel with P2-1 if files don’t overlap
 P2-3 validate/report       after P2-1 contract
 P1-5 --epubcheck           optional; after parent writes the contract
         ↓
-approve goldens, then stop. Do not start Phase 3 implementation.
+approve goldens, then stop. (Historical endpoint; Phase 3/4 are now implemented.)
 ```
 
 ### Tickets
@@ -353,7 +357,7 @@ approve goldens, then stop. Do not start Phase 3 implementation.
 - **Verify:** each fixture asserts one report code or one output invariant; then `validate_book_directory`
 - **Avoid:** inventing Phase 3 split/merge behavior
 
-#### P1-4 — Contract docs
+#### P1-4 — Contract docs (follow-up)
 
 - **Owner:** docs subagent; parent reviews wording
 - **Write:**  
@@ -363,7 +367,7 @@ approve goldens, then stop. Do not start Phase 3 implementation.
   `docs/validation.md`  
   `docs/fixtures.md`  
   plus light edits to README / architecture / canonical-format / development
-- **Work:** document **current** Phase 1 behavior. Label B/C, footnotes, html5lib, EPUBCheck as later.
+- **Work:** complete the dedicated section-planning, links/anchors, validation, and fixture docs for current behavior. Link the implemented Phase 3/4 contracts instead of labeling them as future work; keep html5lib and EPUBCheck explicitly planned only.
 - **Avoid:** production code; site/API promises
 
 #### P1-5 — Optional `--epubcheck` (not an MVP blocker)
@@ -409,11 +413,11 @@ approve goldens, then stop. Do not start Phase 3 implementation.
 - **Work:** one XHTML / many chapters; many XHTML / one chapter; virtual part
 - **Avoid:** implementing heuristics in this pass
 
-### Phase 3 tickets (authorized 2026-08-16)
+### Phase 3 tickets (historical record; completed in 0.2.0)
 
-Brandon asked to implement Phase 3 now. Goldens/P1-4 stay open and are **not** blockers for this pass. Do **not** implement Phase 4 tables/math/notes.
+Brandon asked to implement Phase 3 on 2026-08-16. Goldens/P1-4 stayed open for that pass and are tracked above. Phase 3 is now merged in `main` as `0.2.0`; do **not** treat the integration instructions below as current release instructions, and do **not** implement Phase 4 work in these historical tickets.
 
-One write-scope per agent. Parent integrates, bumps to **0.2.0**, updates `CHANGELOG.md`, reconverts the Hall EPUB under `/tmp` + gitignored `tmp-convert/`, then opens one PR.
+One write-scope per agent. The parent integration, `0.2.0` metadata update, changelog entry, Hall reconversion, and Phase 3 PR are complete.
 
 #### P3-1 — Cover discovery
 
@@ -462,8 +466,8 @@ One write-scope per agent. Parent integrates, bumps to **0.2.0**, updates `CHANG
 
 | Layer | Now | Next |
 |---|---|---|
-| Unit | slug, href, classify | anchors, schemes, nav/OPF, assets, report codes, planner A edges |
-| Synthetic | EPUB2/3, XXE, zip-slip, DRM, broken link | §8 P1-3 list |
+| Unit | slug, href, classify, anchors, schemes, nav/OPF, assets, report codes, planner B/C, cover, textnorm, tables, notes, rich markup | additional edge cases and goldens |
+| Synthetic | EPUB2/3, XXE, zip-slip, DRM, broken links, assets, fragments, hostile SVG, planner B/C, and rich-content fixtures | remaining security/metadata edge cases |
 | Golden | none | EPUB2 + EPUB3 first; more in later phases |
 | Public | none | optional `@pytest.mark.online`, pinned SHA, license check |
 | Private | none | `LEAFMD_CORPUS`, skip if unset |
@@ -487,7 +491,7 @@ pytest -m "not online and not private and not differential and not epubcheck"
 
 ### Security tests still owed
 
-ZIP slip (`../`, absolute, backslash, drive letter), bombs (count / size / ratio), bad zip, empty spine, XXE/DTD/billion-laughs, no network, drop `script`/`iframe`/`object`/`embed`/`form`/`on*`, drop unsafe schemes, SVG script/event/external href, output path escape, no symlink follow.
+Already covered: basic ZIP slip, size/count/ratio limits, DRM, XXE non-expansion, unsafe URL schemes, active HTML removal, hostile SVG cases, and output validation. Still owed: broader ZIP path variants (backslashes, absolute paths, drive letters), malformed/bad ZIP variants, DTD/billion-laughs coverage, no-network assertions, symlink entries, and additional output path-escape cases.
 
 ### Later fixture batches (non-overlapping)
 
@@ -540,7 +544,7 @@ ZIP slip (`../`, absolute, backslash, drive letter), bombs (count / size / ratio
 
 ---
 
-## 13. Need from Brandon (nothing blocking closeout)
+## 13. Need from Brandon (nothing blocking the Phase 4 PR)
 
 Already answered and locked:
 
@@ -550,8 +554,4 @@ Already answered and locked:
 4. regenerate-only  
 5. `book.pettee.org`
 
-Still optional, not blocking Phase 1:
-
-- Include `--epubcheck` in this closeout, or wait for Phase 5?
-
-Default if unasked: skip EPUBCheck for MVP. GitHub remote is created.
+EPUBCheck is intentionally deferred to the optional P1-5 / Phase 5 work. The current CLI does not accept `--epubcheck`; normal conversion and CI do not depend on Docker or host Java. GitHub remote is created.

@@ -20,14 +20,17 @@ Do not commit to `main` after the seed push except for emergency hotfix with Bra
 
 ## What already landed on `main`
 
-The empty GitHub repo was seeded with the current Phase 1 tree, including:
+The repo was seeded with the Phase 1 tree and has since merged the first three implementation PRs:
 
 - scaffolded converter / inspect / validate / report
 - P1-0 quality-gate collection fix
 - P1-1 fragment join, TOC/anchor rewrite, XXE `local_name` hardening, mypy cleanup
 - this workflow + the implementation plan
+- PR 1: Copilot review instructions
+- PR 2: link, asset, and validator correctness
+- PR 3: semantic reconstruction (cover discovery, evidence-ranked classification, planner B/C, and text cleanup)
 
-That seed is **not** MVP acceptance. Later tickets still go out as PRs.
+The current Phase 4 work is on `feat/phase4-rich-content` and is intended to go out as one PR after local documentation and quality-gate review. The branch is still unpushed; do not infer merge status from local commits.
 
 ## Branch naming
 
@@ -60,7 +63,9 @@ Follow `docs/implementation-plan.md` §8.
 - Parent owns architecture, format contract, security, goldens approval, planner B/C.
 - Subagents stay isolated. No overlapping files across parallel PRs.
 
-Suggested first PR stack (after seed):
+### Historical first-PR stack (traceability)
+
+The following table records the original proposed stack. It is not the current queue; Phase 2 and Phase 3 were delivered as consolidated PRs, and the remaining Phase 1 closeout items are tracked in the implementation plan.
 
 | Order | Ticket | Branch | Notes |
 |---|---|---|---|
@@ -74,7 +79,7 @@ Suggested first PR stack (after seed):
 | 8 | P2-3 | `fix/p2-3-validate-report` | After P2-1 contract. |
 | 9 | P1-5 | `feat/p1-5-epubcheck` | Optional. Not an MVP blocker. |
 
-Do **not** start Phase 3 implementation PRs until P1-0…P1-5 and P2-1 pass.
+Do **not** reopen the historical Phase 1–3 ticket stack. New work should use one focused branch/PR, preserve the canonical schema and anchor contract, and update the implementation plan when a phase changes.
 
 ## Local commands
 

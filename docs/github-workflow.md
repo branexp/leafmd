@@ -30,7 +30,7 @@ The repo was seeded with the Phase 1 tree and has since merged the first three i
 - PR 2: link, asset, and validator correctness
 - PR 3: semantic reconstruction (cover discovery, evidence-ranked classification, planner B/C, and text cleanup)
 
-The current Phase 4 work is on `feat/phase4-rich-content` and is intended to go out as one PR after local documentation and quality-gate review. The branch is still unpushed; do not infer merge status from local commits.
+The current Phase 4 work is on `feat/phase4-rich-content` and is intended to go out as one PR after local documentation and quality-gate review. Track push and merge status on GitHub; do not infer it from local commits.
 
 ## Branch naming
 

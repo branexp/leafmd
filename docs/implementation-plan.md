@@ -1,6 +1,6 @@
 # leafmd — Final Implementation Plan
 
-**Status:** Phase 3 is merged on `main` (`a6dee61`, 0.2.0). Phase 4 is implemented and acceptance-tested locally on `feat/phase4-rich-content`; it has not been pushed or merged.
+**Status:** Phase 3 is merged on `main` (`a6dee61`, 0.2.0). Phase 4 is implemented and acceptance-tested on `feat/phase4-rich-content`; it remains pending PR review and merge.
 **Date:** 2026-08-17
 **Repo:** `/home/clawdbot/clawd/projects/leafmd` → private `https://github.com/branexp/leafmd`  
 **This file is the working build plan.** Use it instead of the original chat plan. GitHub/PR workflow: [github-workflow.md](github-workflow.md).

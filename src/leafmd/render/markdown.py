@@ -10,6 +10,7 @@ from lxml import etree
 from markdownify import MarkdownConverter
 
 from leafmd.model.section import OutputTarget, SectionPlan
+from leafmd.parse.hrefs import posix_join, split_fragment
 from leafmd.parse.html import body_element
 from leafmd.parse.xmlutil import attr, local_name
 from leafmd.transform.notes import analyze_notes
@@ -93,7 +94,7 @@ def render_section(
     _inject_explicit_anchors(body, plan, targets)
     sanitize_rich_tree(body)
     protected: dict[str, str] = {}
-    footnotes = _prepare_rich_and_notes(body, plan, protected)
+    footnotes = _prepare_rich_and_notes(body, plan, targets, protected)
     _prepare_caption_wrappers(body)
     converter = LeafmdConverter(
         heading_style="ATX",
@@ -114,7 +115,10 @@ def render_section(
 
 
 def _prepare_rich_and_notes(
-    body: etree._Element, plan: SectionPlan, protected: dict[str, str]
+    body: etree._Element,
+    plan: SectionPlan,
+    targets: dict[tuple[str, str | None], OutputTarget],
+    protected: dict[str, str],
 ) -> list[tuple[str, str]]:
     # Replace rich nodes with inert placeholders before BeautifulSoup parsing;
     # this prevents markdownify and text normalization from touching them.
@@ -124,8 +128,15 @@ def _prepare_rich_and_notes(
         if any(is_rich_element(parent) for parent in node.iterancestors()):
             continue
         _replace_with_token(node, etree.tostring(node, encoding="unicode", with_tail=False), protected)
+    # Link rewriting happens before rendering, so analyze a copy with known
+    # target-map links restored to source identities.  The output tree remains
+    # rewritten for complex/cross-document notes; only simple-local references
+    # are replaced below.
+    analysis_body = deepcopy(body)
+    _restore_source_note_hrefs(analysis_body, plan, targets)
     source = plan.sources[0].href.split("#", 1)[0] if plan.sources else ""
-    analysis = analyze_notes(body, source)
+    analysis = analyze_notes(analysis_body, source)
+    original_by_analysis_node = dict(zip(analysis_body.iter(), body.iter(), strict=True))
     definitions: dict[str, etree._Element] = {}
     for rel in analysis.simple_local:
         if rel.definition_id:
@@ -134,10 +145,16 @@ def _prepare_rich_and_notes(
                 definitions[rel.definition_id] = definition_node
     footnotes: list[tuple[str, str]] = []
     for rel in analysis.simple_local:
-        if rel.reference_id:
-            reference = _find_id(body, rel.reference_id)
-            if reference is not None:
-                _replace_with_token(reference, f"[^{rel.label}]", protected)
+        reference = next(
+            (
+                original_by_analysis_node[reference_node]
+                for reference_node, candidate in zip(analysis.references, analysis.relationships, strict=True)
+                if candidate is rel
+            ),
+            None,
+        )
+        if reference is not None:
+            _replace_with_token(reference, f"[^{rel.label}]", protected)
         definition = definitions.get(rel.definition_id or "")
         if definition is not None:
             footnotes.append((rel.label, " ".join("".join(definition.itertext()).split())))
@@ -145,6 +162,30 @@ def _prepare_rich_and_notes(
             if parent is not None:
                 parent.remove(definition)
     return footnotes
+
+
+def _restore_source_note_hrefs(
+    root: etree._Element,
+    plan: SectionPlan,
+    targets: dict[tuple[str, str | None], OutputTarget],
+) -> None:
+    output_path = plan.output_path or ""
+    reverse: dict[tuple[str, str], tuple[str, str]] = {}
+    for (source_path, source_id), target in targets.items():
+        if source_id is not None and target.anchor is not None:
+            reverse[(target.path, target.anchor)] = (source_path, source_id)
+    for node in root.iter():
+        href = attr(node, "href")
+        if not href:
+            continue
+        joined = posix_join(output_path, href)
+        path, fragment = split_fragment(joined)
+        if fragment is None:
+            continue
+        source_target = reverse.get((path, fragment))
+        if source_target is not None:
+            source_path, source_id = source_target
+            node.set("href", f"{source_path}#{source_id}")
 
 
 def _replace_with_token(node: etree._Element, value: str, protected: dict[str, str]) -> None:

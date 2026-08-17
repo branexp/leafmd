@@ -46,7 +46,8 @@ def test_rich_fixture_converts_and_validates_as_a_book_directory(tmp_path: Path)
     epub_path = write_bytes(tmp_path / "rich.epub", make_rich_content_book())
     book_dir, report = convert_epub(epub_path, tmp_path / "out")
 
-    assert report.status in {"ok", "completed_with_warnings"}
+    assert report.status == "ok"
+    assert report.stats.unresolved_links == 0
     validation = validate_book_directory(book_dir)
     assert not validation.has_fatal()
     assert not validation.has_errors()
@@ -55,6 +56,10 @@ def test_rich_fixture_converts_and_validates_as_a_book_directory(tmp_path: Path)
         assert marker in content
     assert 'rowspan="2"' in content and '<table id="nested-table">' in content
     assert "<math" in content and "<ruby" in content and 'dir="auto"' in content
+    assert "[^note-epub-rich-xhtml-local-note]" in content
+    assert "[^note-epub-rich-xhtml-local-note]:" in content
+    assert "#src-notes-cross-note" in content and "#src-rich-cross-ref" in content
+    assert "](#)" not in content
 
 
 def test_rich_conversion_is_byte_stable_and_report_schema_compatible(tmp_path: Path) -> None:

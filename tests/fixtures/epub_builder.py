@@ -523,7 +523,7 @@ def make_rich_content_book() -> bytes:
     <h1 id="rich-start">Rich Content Sampler</h1>
     <p id="local-ref">A local statement<a epub:type="noteref" role="doc-noteref" href="#local-note">1</a>.</p>
     <aside id="local-note" epub:type="footnote" role="doc-footnote">
-      <p>Local note text with <em>inline emphasis</em>.</p>
+      Local note text with <em>inline emphasis</em>.
     </aside>
     <p id="complex-ref">A statement with a complex note
       <a epub:type="noteref" role="doc-noteref" href="#complex-note">2</a>.
@@ -582,7 +582,5 @@ def make_rich_content_book() -> bytes:
     """
     return make_custom_epub3(
         title="Synthetic Rich Content",
-        chapters=[("rich", "rich.xhtml", rich_body)],
-        extras={"EPUB/Notes.xhtml": _xhtml("Notes", notes_body)},
-        manifest_extra='    <item id="notes" href="Notes.xhtml" media-type="application/xhtml+xml"/>\n',
+        chapters=[("rich", "rich.xhtml", rich_body), ("notes", "Notes.xhtml", notes_body)],
     )

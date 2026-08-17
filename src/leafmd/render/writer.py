@@ -15,6 +15,9 @@ from leafmd.parse.html import parse_document
 from leafmd.render.markdown import render_section
 from leafmd.transform.assets import collect_and_copy_assets
 from leafmd.transform.links import TargetMap, build_target_map, rewrite_tree
+from leafmd.transform.merge import merge_documents
+from leafmd.transform.slice import slice_document
+from leafmd.transform.textnorm import description_to_markdown
 
 
 def write_book_directory(
@@ -34,21 +37,29 @@ def write_book_directory(
     for plan in plans:
         if plan.role != "file" or not plan.output_path:
             continue
-        source = plan.sources[0]
-        path, _fragment = split_fragment(source.href)
-        resource = next((item for item in publication.resources.values() if item.href == path), None)
-        if resource is None or resource.content is None:
+        roots = []
+        missing_path = plan.sources[0].href if plan.sources else plan.id
+        for source in plan.sources:
+            path, _fragment = split_fragment(source.href)
+            resource = next((item for item in publication.resources.values() if item.href == path), None)
+            if resource is None or resource.content is None:
+                continue
+            root = parse_document(resource.content)
+            if source.start_id or source.end_id:
+                root = slice_document(root, source.start_id, source.end_id)
+            rewrite_tree(root, path, targets, asset_map, report, plan.output_path)
+            roots.append(root)
+        if not roots:
             from leafmd.model.issues import IssueSeverity
 
             report.add(
                 IssueSeverity.ERROR,
                 "RENDER_MISSING_SOURCE",
-                f"No bytes for section source {path}",
+                f"No bytes for section source {missing_path}",
                 where=plan.id,
             )
             continue
-        root = parse_document(resource.content)
-        rewrite_tree(root, path, targets, asset_map, report, plan.output_path)
+        root = merge_documents(roots)
         markdown = render_section(root, plan, targets.by_href)
         dest = book_dir / plan.output_path
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -158,13 +169,13 @@ def _toc_json(
     plans: list[SectionPlan],
     targets: TargetMap,
 ) -> dict[str, Any]:
-    by_href = {split_fragment(plan.sources[0].href)[0]: plan for plan in plans if plan.sources}
+    by_href = {split_fragment(plan.sources[0].href): plan for plan in plans if plan.sources}
 
     def convert(nodes: list[Any], provenance: str) -> list[dict[str, Any]]:
         out: list[dict[str, Any]] = []
         for node in nodes:
-            path, _fragment = split_fragment(node.href) if node.href else (None, None)
-            plan = by_href.get(path) if path else None
+            source = split_fragment(node.href) if node.href else None
+            plan = by_href.get(source) if source else None
             href = _toc_href(node.href, targets)
             if href is None and plan and plan.output_path:
                 href = plan.output_path
@@ -180,7 +191,8 @@ def _toc_json(
             )
         return out
 
-    tree = convert(publication.nav_toc, "nav")
+    combined = _union_toc(publication.nav_toc, publication.ncx_toc)
+    tree = convert(combined, "nav+ncx")
     if not tree:
         tree = convert(publication.ncx_toc, "ncx")
     if not tree:
@@ -211,7 +223,7 @@ def _index_markdown(
         if mapped:
             cover_path = mapped[3:] if mapped.startswith("../") else mapped
             cover_line = f"\n![Cover]({cover_path})\n"
-    description = publication.metadata.description or ""
+    description = description_to_markdown(publication.metadata.description)
     first_link = f"[{first.title}]({first.output_path})" if first and first.output_path else ""
     return (
         f"# {publication.metadata.title}\n\n"
@@ -224,7 +236,7 @@ def _index_markdown(
 
 
 def _toc_markdown(publication: NormalizedPublication, plans: list[SectionPlan], targets: TargetMap) -> str:
-    nodes = publication.nav_toc or publication.ncx_toc
+    nodes = _union_toc(publication.nav_toc, publication.ncx_toc)
     if nodes:
         lines = ["# Contents", ""]
         lines.extend(_render_toc_nodes(nodes, plans, targets, depth=0))
@@ -236,18 +248,51 @@ def _toc_markdown(publication: NormalizedPublication, plans: list[SectionPlan], 
     return "\n".join(lines) + "\n"
 
 
+def _union_toc(primary: list[Any], secondary: list[Any]) -> list[Any]:
+    """Union navigation trees, retaining nav labels and order on collisions."""
+    if not primary:
+        return list(secondary)
+    result = list(primary)
+    keys = {_toc_key(node) for node in result}
+    for node in secondary:
+        key = _toc_key(node)
+        if key in keys:
+            existing = next(item for item in result if _toc_key(item) == key)
+            children = _union_toc(list(existing.children), list(node.children))
+            if children != list(existing.children):
+                from leafmd.model.publication import NavNode
+
+                result[result.index(existing)] = NavNode(
+                    existing.title,
+                    existing.href,
+                    existing.kind,
+                    existing.semantic_type,
+                    tuple(children),
+                )
+        else:
+            result.append(node)
+            keys.add(key)
+    return result
+
+
+def _toc_key(node: Any) -> tuple[str, str | None]:
+    if not node.href:
+        return (node.title, None)
+    return split_fragment(node.href)
+
+
 def _render_toc_nodes(
     nodes: list[Any],
     plans: list[SectionPlan],
     targets: TargetMap,
     depth: int,
 ) -> list[str]:
-    by_href = {split_fragment(plan.sources[0].href)[0]: plan for plan in plans if plan.sources}
+    by_href = {split_fragment(plan.sources[0].href): plan for plan in plans if plan.sources}
     lines: list[str] = []
     indent = "  " * depth
     for node in nodes:
-        path = split_fragment(node.href)[0] if node.href else None
-        plan = by_href.get(path) if path else None
+        source = split_fragment(node.href) if node.href else None
+        plan = by_href.get(source) if source else None
         label = node.title
         href = _toc_href(node.href, targets)
         if href is None and plan and plan.output_path:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from zipfile import ZipFile
 
@@ -9,7 +10,7 @@ from leafmd.errors import FatalConversionError
 from leafmd.model.issues import IssueSeverity
 from leafmd.model.publication import NormalizedPublication, Resource
 from leafmd.model.report import ConversionReport
-from leafmd.parse.navigation import guide_to_nodes, parse_nav_document, parse_ncx
+from leafmd.parse.navigation import guide_to_nodes, parse_html_toc, parse_nav_document, parse_ncx
 from leafmd.parse.package import parse_package, read_package_path
 
 # EbookLib is imported only in this module.
@@ -35,6 +36,12 @@ def load_publication(path: Path, archive: ZipFile, report: ConversionReport) -> 
             where=package_path,
         )
     ncx_toc = parse_ncx(ncx_resource, report) if ncx_resource else []
+    if not nav_toc:
+        for candidate in _html_toc_candidates(resources):
+            recovered = parse_html_toc(candidate)
+            if recovered:
+                nav_toc = recovered
+                break
     if not nav_toc and not ncx_toc:
         report.add(
             IssueSeverity.WARNING,
@@ -93,3 +100,19 @@ def _first_media(resources: dict[str, Resource], media_type: str) -> Resource | 
         if resource.media_type == media_type:
             return resource
     return None
+
+
+def _html_toc_candidates(resources: dict[str, Resource]) -> list[Resource]:
+    """Prefer a spine HTML file named like a TOC when EPUB 3 nav is absent."""
+    ranked: list[tuple[int, Resource]] = []
+    for resource in resources.values():
+        name = f"{resource.id} {resource.href}".lower()
+        score = 0
+        if re.search(r"(?:^|[._\-\s/])toc(?:[._\-\s]|$)", name):
+            score += 2
+        if "contents" in name:
+            score += 1
+        if score:
+            ranked.append((score, resource))
+    ranked.sort(key=lambda item: (-item[0], item[1].href))
+    return [item[1] for item in ranked]

@@ -1,6 +1,6 @@
 # Phase 4 — Rich-content reconstruction
 
-**Status:** planned and delegated on `feat/phase4-rich-content`  
+**Status:** implemented and acceptance-tested locally on `feat/phase4-rich-content`; not pushed or merged
 **Baseline:** `main` / `a6dee61` (`0.2.0`)  
 **Scope:** tables, notes, MathML preservation, ruby, and bidi-aware rendering  
 **Source of truth:** synthetic fixtures plus characterization of the three local EPUBs in `tmp-convert/`

@@ -44,7 +44,8 @@ def parse_package(
     metadata = BookMetadata(title="Untitled")
     resources: dict[str, Resource] = {}
     spine: list[SpineEntry] = []
-    cover_id: str | None = None
+    meta_cover_id: str | None = None
+    property_cover_id: str | None = None
     guide: list[tuple[str, str, str]] = []
 
     for node in root.iter():
@@ -85,7 +86,7 @@ def parse_package(
             meta_name = attr(node, "name")
             meta_content = attr(node, "content")
             if meta_name == "cover" and meta_content:
-                cover_id = meta_content
+                meta_cover_id = meta_content
             prop = attr(node, "property")
             if prop == "dcterms:modified" and metadata.date is None:
                 text = child_text(node)
@@ -124,7 +125,7 @@ def parse_package(
                 content=content,
             )
             if "cover-image" in properties:
-                cover_id = item_id
+                property_cover_id = property_cover_id or item_id
         elif name == "itemref":
             idref = attr(node, "idref")
             if not idref:
@@ -143,7 +144,133 @@ def parse_package(
     if not spine:
         raise FatalConversionError("PARSE_EMPTY_SPINE", "Package document has an empty spine")
 
+    # Resolve these after the whole package is read: OPF metadata, manifest,
+    # and guide elements are not required to occur in any particular order.
+    cover_id = _resolve_cover_id(
+        archive,
+        resources,
+        meta_cover_id,
+        property_cover_id,
+        guide,
+        report,
+    )
+
     return version, metadata, resources, spine, cover_id, guide
+
+
+def _resolve_cover_id(
+    archive: ZipFile,
+    resources: dict[str, Resource],
+    meta_cover_id: str | None,
+    property_cover_id: str | None,
+    guide: list[tuple[str, str, str]],
+    report: ConversionReport,
+) -> str | None:
+    """Find the cover using the EPUB conventions, from strongest to weakest."""
+    for candidate in (meta_cover_id, property_cover_id):
+        resolved = _cover_resource_id(candidate, resources, archive, report)
+        if resolved is not None:
+            return resolved
+
+    guide_candidates = [
+        href
+        for title, href, ref_type in guide
+        if ref_type.lower() in {"cover", "other.ms-coverimage-standard"} or title.lower() == "cover"
+    ]
+    for href in guide_candidates:
+        resolved = _cover_href_id(href, resources, archive, report)
+        if resolved is not None:
+            return resolved
+
+    for candidate in ("cover", "coverimagestandard"):
+        resource = resources.get(candidate)
+        if resource is not None and _is_image(resource):
+            return candidate
+
+    if guide_candidates:
+        report.add(
+            IssueSeverity.WARNING,
+            "COVER_MISSING",
+            "OPF guide references a cover, but no cover image was found",
+            where=guide_candidates[0],
+        )
+    return None
+
+
+def _cover_resource_id(
+    candidate: str | None,
+    resources: dict[str, Resource],
+    archive: ZipFile,
+    report: ConversionReport,
+) -> str | None:
+    if not candidate:
+        return None
+    resource = resources.get(candidate)
+    if resource is None:
+        return None
+    return _cover_item_id(resource, resources, archive, report)
+
+
+def _cover_href_id(
+    href: str,
+    resources: dict[str, Resource],
+    archive: ZipFile,
+    report: ConversionReport,
+) -> str | None:
+    path = href.split("#", 1)[0]
+    resource = next((item for item in resources.values() if item.href == path), None)
+    if resource is None:
+        return None
+    return _cover_item_id(resource, resources, archive, report)
+
+
+def _cover_item_id(
+    resource: Resource,
+    resources: dict[str, Resource],
+    archive: ZipFile,
+    report: ConversionReport,
+) -> str | None:
+    if _is_image(resource):
+        return resource.id
+    if resource.media_type in {"application/xhtml+xml", "text/html"}:
+        return _first_local_image(resource, resources, archive, report)
+    return None
+
+
+def _first_local_image(
+    document: Resource,
+    resources: dict[str, Resource],
+    archive: ZipFile,
+    report: ConversionReport,
+) -> str | None:
+    if document.content is None:
+        return None
+    from leafmd.parse.html import parse_document
+
+    try:
+        root = parse_document(document.content)
+    except Exception:  # noqa: BLE001 - malformed cover markup is non-fatal
+        return None
+    for node in root.iter():
+        if local_name(getattr(node, "tag", "")) != "img":
+            continue
+        src = attr(node, "src")
+        if not src:
+            continue
+        from urllib.parse import urlparse
+
+        parsed = urlparse(src)
+        if parsed.scheme or parsed.netloc or src.startswith("data:"):
+            continue
+        href = posix_join(document.href, src).split("#", 1)[0]
+        image = next((item for item in resources.values() if item.href == href), None)
+        if image is not None and _is_image(image):
+            return image.id
+    return None
+
+
+def _is_image(resource: Resource) -> bool:
+    return resource.media_type.startswith("image/")
 
 
 def _replace(metadata: BookMetadata, **changes: object) -> BookMetadata:

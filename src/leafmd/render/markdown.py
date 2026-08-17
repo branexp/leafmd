@@ -213,7 +213,7 @@ def _find_id(root: etree._Element, value: str) -> etree._Element | None:
 
 
 def _prepare_caption_wrappers(body: etree._Element) -> None:
-    for table in list(body.iter("table")):
+    for table in [node for node in body.iter() if local_name(getattr(node, "tag", "")).lower() == "table"]:
         decision = classify_table(table)
         if decision.caption is None or decision.caption.source != "publisher-wrapper" or not decision.gfm_safe:
             continue

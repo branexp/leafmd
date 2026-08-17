@@ -173,8 +173,10 @@ def _unsafe_reason(table: etree._Element, rows: list[etree._Element], widths: li
 def _inline_safe(cell: etree._Element) -> bool:
     for node in cell.iterdescendants():
         tag = local_name(getattr(node, "tag", ""))
-        if tag in _BLOCK_TAGS and "SimplePara" not in _class_tokens(node):
-            return False
+        if tag in _BLOCK_TAGS:
+            if "SimplePara" not in _class_tokens(node):
+                return False
+            continue
         if tag in {
             "img",
             "svg",

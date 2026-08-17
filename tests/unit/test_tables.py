@@ -52,6 +52,18 @@ def test_simple_para_wrapper_is_unwrapped_only_in_safe_table() -> None:
     assert etree.tostring(cell, encoding="unicode") == "<td>hello <em>there</em></td>"
 
 
+def test_block_simple_para_wrapper_is_unwrapped_for_safe_table() -> None:
+    decision = classify_table(
+        table(
+            "<table><thead><tr><th>A</th></tr></thead>"
+            "<tbody><tr><td><div class='SimplePara'>x</div></td></tr></tbody></table>"
+        )
+    )
+    assert decision.gfm_safe
+    assert not decision.normalized_table.xpath(".//*[@class='SimplePara']")
+    assert etree.tostring(decision.normalized_table.xpath(".//td")[0], encoding="unicode") == "<td>x</td>"
+
+
 def test_caption_metadata_is_preserved_for_semantic_caption() -> None:
     decision = classify_table(
         table("<table><caption>Table 1: Values</caption><tr><th>A</th></tr><tr><td>1</td></tr></table>")

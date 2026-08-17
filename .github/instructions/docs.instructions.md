@@ -12,7 +12,7 @@ applyTo: "docs/**/*.md"
 
 ## Writing rules
 
-- Document **current** shipped behavior. Label unshipped footnotes, html5lib, EPUBCheck, and the reading site as later. Phase 3 B/C may be documented once the matching P3 ticket lands.
+- Document **current** shipped behavior. Footnotes and Phase 3 B/C are shipped in the current 0.3.x branch. Label html5lib, EPUBCheck, and the reading site as later.
 - Do not promise a public API, PyPI release, daemon, or `book.pettee.org` implementation in this repo.
 - Keep commands copy-pasteable and matching CI: `ruff`, `mypy`, `python -m pytest`.
 - Prefer short imperative lists over architecture essays.

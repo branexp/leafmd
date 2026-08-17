@@ -11,6 +11,7 @@ from markdownify import MarkdownConverter
 from leafmd.model.section import OutputTarget, SectionPlan
 from leafmd.parse.html import body_element
 from leafmd.parse.xmlutil import attr, local_name
+from leafmd.transform.textnorm import normalize_text, promote_leading_bold_title
 
 
 class LeafmdConverter(MarkdownConverter):
@@ -55,7 +56,9 @@ def render_section(
         escape_underscores=False,
         wrap=False,
     )
-    markdown = converter.convert_soup(_as_bs4(body)).strip() + "\n"
+    markdown = converter.convert_soup(_as_bs4(body)).strip()
+    markdown = promote_leading_bold_title(normalize_text(markdown))
+    markdown = markdown.rstrip() + "\n"
     return _frontmatter(plan) + markdown
 
 

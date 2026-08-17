@@ -15,6 +15,7 @@ from leafmd.parse.html import parse_document
 from leafmd.render.markdown import render_section
 from leafmd.transform.assets import collect_and_copy_assets
 from leafmd.transform.links import TargetMap, build_target_map, rewrite_tree
+from leafmd.transform.textnorm import description_to_markdown
 
 
 def write_book_directory(
@@ -211,7 +212,7 @@ def _index_markdown(
         if mapped:
             cover_path = mapped[3:] if mapped.startswith("../") else mapped
             cover_line = f"\n![Cover]({cover_path})\n"
-    description = publication.metadata.description or ""
+    description = description_to_markdown(publication.metadata.description)
     first_link = f"[{first.title}]({first.output_path})" if first and first.output_path else ""
     return (
         f"# {publication.metadata.title}\n\n"

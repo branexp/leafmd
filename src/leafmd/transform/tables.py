@@ -10,14 +10,14 @@ from __future__ import annotations
 import re
 from copy import deepcopy
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 from lxml import etree
 
 from leafmd.parse.xmlutil import local_name
 
 
-class TableKind(str, Enum):
+class TableKind(StrEnum):
     """The two representations a table may safely use downstream."""
 
     GFM = "gfm"

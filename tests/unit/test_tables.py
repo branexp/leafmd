@@ -9,9 +9,7 @@ def table(markup: str) -> etree._Element:
 
 def test_rectangular_table_with_explicit_header_is_gfm_safe() -> None:
     decision = classify_table(
-        table(
-            "<table><thead><tr><th>A</th><th>B</th></tr></thead>" "<tbody><tr><td>1</td><td>2</td></tr></tbody></table>"
-        )
+        table("<table><thead><tr><th>A</th><th>B</th></tr></thead><tbody><tr><td>1</td><td>2</td></tr></tbody></table>")
     )
     assert decision.kind is TableKind.GFM
     assert decision.gfm_safe
@@ -45,8 +43,7 @@ def test_nested_block_content_is_raw_html() -> None:
 def test_simple_para_wrapper_is_unwrapped_only_in_safe_table() -> None:
     decision = classify_table(
         table(
-            "<table><tr><th>A</th></tr>"
-            "<tr><td><span class='SimplePara'>hello <em>there</em></span></td></tr></table>"
+            "<table><tr><th>A</th></tr><tr><td><span class='SimplePara'>hello <em>there</em></span></td></tr></table>"
         )
     )
     cell = decision.normalized_table.xpath(".//td")[0]

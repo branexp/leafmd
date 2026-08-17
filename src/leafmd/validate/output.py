@@ -192,13 +192,18 @@ def _check_footnotes(section_path: str, text: str, report: ConversionReport) -> 
                 f"Footnote reference has no definition: {label}",
                 where=section_path,
             )
-    for label in sorted({value for value in definitions if definitions.count(value) > 1}):
-        report.add(
-            IssueSeverity.ERROR,
-            "VALIDATE_FOOTNOTE_DUPLICATE",
-            f"Footnote has duplicate definitions: {label}",
-            where=section_path,
-        )
+
+    counts: dict[str, int] = {}
+    for label in definitions:
+        counts[label] = counts.get(label, 0) + 1
+    for label, count in sorted(counts.items()):
+        if count > 1:
+            report.add(
+                IssueSeverity.ERROR,
+                "VALIDATE_FOOTNOTE_DUPLICATE",
+                f"Footnote has duplicate definitions: {label}",
+                where=section_path,
+            )
 
 
 def _walk_toc(book_dir: Path, nodes: list[Any], report: ConversionReport) -> None:

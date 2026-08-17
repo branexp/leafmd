@@ -36,7 +36,7 @@ assert any(issue.code == "LINK_UNRESOLVED" for issue in report.issues)
 ## Fixtures
 
 - One fixture family per ticket when possible (see implementation plan §9 batches).
-- Characterization tests for planner B/C may fail on purpose. Do not “fix” them by implementing Phase 3 in a test PR.
+- Planner B/C contract tests are shipped behavior and must pass. Keep characterization work for later behavior explicitly marked rather than introducing intentional failures into the default suite.
 - Never add copyrighted books or `LEAFMD_CORPUS` contents.
 
 ## Markers

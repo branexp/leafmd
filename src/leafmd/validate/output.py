@@ -15,6 +15,8 @@ MD_LINK = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 HTML_HREF = re.compile(r"""(?:href|src)=["']([^"']+)["']""")
 HTML_ID = re.compile(r"""id=["']([^"']+)["']""")
 FRONTMATTER_ID = re.compile(r"^id:\s*(\S+)", re.M)
+FOOTNOTE_REF = re.compile(r"(?<!\!)\[\^([A-Za-z0-9][A-Za-z0-9_-]*)\]")
+FOOTNOTE_DEF = re.compile(r"^\[\^([A-Za-z0-9][A-Za-z0-9_-]*)\]:", re.M)
 
 
 def validate_book_directory(book_dir: Path) -> ConversionReport:
@@ -109,6 +111,7 @@ def validate_book_directory(book_dir: Path) -> ConversionReport:
                 report.add(IssueSeverity.ERROR, "VALIDATE_DUP_ANCHOR", f"Duplicate anchor {key}", where=path)
             seen_anchors.add(key)
         _check_links(book_dir, path, text, report)
+        _check_footnotes(path, text, report)
 
     if toc:
         _walk_toc(book_dir, toc.get("nodes") or [], report)
@@ -173,6 +176,32 @@ def _check_links(book_dir: Path, section_path: str, text: str, report: Conversio
                 IssueSeverity.WARNING,
                 "VALIDATE_ANCHOR_MISSING",
                 f"Missing explicit anchor {fragment} in {resolved.name}",
+                where=section_path,
+            )
+
+
+def _check_footnotes(section_path: str, text: str, report: ConversionReport) -> None:
+    """Ensure GFM footnote references have exactly one local definition."""
+    definitions = FOOTNOTE_DEF.findall(text)
+    defined = set(definitions)
+    for label in FOOTNOTE_REF.findall(text):
+        if label not in defined:
+            report.add(
+                IssueSeverity.ERROR,
+                "VALIDATE_FOOTNOTE_MISSING",
+                f"Footnote reference has no definition: {label}",
+                where=section_path,
+            )
+
+    counts: dict[str, int] = {}
+    for label in definitions:
+        counts[label] = counts.get(label, 0) + 1
+    for label, count in sorted(counts.items()):
+        if count > 1:
+            report.add(
+                IssueSeverity.ERROR,
+                "VALIDATE_FOOTNOTE_DUPLICATE",
+                f"Footnote has duplicate definitions: {label}",
                 where=section_path,
             )
 

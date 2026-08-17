@@ -12,9 +12,10 @@ Treat every EPUB as hostile.
 
 ## Transform
 
-- Drop `script`, `iframe`, `object`, `embed`, `form`, and event handlers
+- Rich XHTML trees drop `script`, `iframe`, `object`, `embed`, `form`, `base`, `applet`, `portal`, and `svg`; event handlers, `style`, and `srcdoc` are stripped
+- Sanitize rich directionality to safe `dir="rtl|ltr|auto"`; remove unsafe URL-bearing attributes
 - Allow `http`, `https`, `mailto`, and internal relative links
-- Sanitize SVG (`script`, event attributes, external http refs)
+- Sanitize SVG assets separately (`script`, event attributes, foreign content, and external HTTP references)
 - Never fetch remote assets
 
 ## Site

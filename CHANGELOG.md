@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0 — 2026-08-17
+
+Phase 4 rich-content reconstruction.
+
+- Conservative GFM tables with deterministic caption text; complex, spanning, or ambiguous tables remain rewritten raw HTML.
+- Simple same-section local notes become deterministic GFM footnotes; complex notes remain preserved, while cross-document notes remain rewritten links with anchors intact.
+- MathML, ruby, and bidi markup are preserved as safe raw HTML; active content and unsafe URL schemes are removed at the existing rewrite boundary.
+- Synthetic rich-content fixtures, byte-stable repeated conversion checks, and validator coverage for dangling/duplicate GFM footnotes.
+
 ## 0.2.0 — 2026-08-16
 
 Phase 3 semantic reconstruction.

@@ -59,7 +59,7 @@ def write_bytes(path: Path, data: bytes) -> Path:
 def _xhtml(title: str, body: str) -> bytes:
     return (
         '<?xml version="1.0"?>\n'
-        '<html xmlns="http://www.w3.org/1999/xhtml">\n'
+        '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">\n'
         f"<head><title>{title}</title></head>\n"
         f"<body>\n{body}\n</body>\n"
         "</html>\n"
@@ -514,4 +514,73 @@ def make_malformed_html_book() -> bytes:
                 "<h1>Broken</h1><p>Unclosed paragraph<div>nested</p></div>",
             )
         ],
+    )
+
+
+def make_rich_content_book() -> bytes:
+    """Build an original-authored EPUB containing the Phase 4 rich-content probes."""
+    rich_body = r"""
+    <h1 id="rich-start">Rich Content Sampler</h1>
+    <p id="local-ref">A local statement<a epub:type="noteref" role="doc-noteref" href="#local-note">1</a>.</p>
+    <aside id="local-note" epub:type="footnote" role="doc-footnote">
+      Local note text with <em>inline emphasis</em>.
+    </aside>
+    <p id="complex-ref">A statement with a complex note
+      <a epub:type="noteref" role="doc-noteref" href="#complex-note">2</a>.
+    </p>
+    <aside id="complex-note" epub:type="footnote" role="doc-footnote">
+      <p>Complex note with a block and a nested table.</p>
+      <blockquote><p>Quoted note detail.</p></blockquote>
+      <table><tr><td>Nested note cell</td></tr></table>
+    </aside>
+    <div class="Table" id="publisher-table">
+      <div class="Caption"><span class="CaptionNumber">Table 1.</span>
+        <span class="CaptionContent">Wrapped data</span>
+      </div>
+      <table>
+        <thead><tr><th>Key</th><th>Value</th></tr></thead>
+        <tbody><tr><td>A</td><td>Alpha</td></tr></tbody>
+      </table>
+    </div>
+    <table id="rectangular-table">
+      <caption>Table 2. A small rectangular table.</caption>
+      <thead><tr><th>Region</th><th>Count</th></tr></thead>
+      <tbody><tr><td>North</td><td>3</td></tr><tr><td>South</td><td>5</td></tr></tbody>
+    </table>
+    <table id="spanning-table">
+      <caption>Table 3. A table with spans.</caption>
+      <tbody><tr><th rowspan="2">Group</th><th colspan="2">Scores</th></tr><tr><td>Low</td><td>High</td></tr></tbody>
+    </table>
+    <table id="nested-table">
+      <caption>Table 4. A block-content table.</caption>
+      <tr><td><p>Block cell</p><ul><li>First item</li></ul><table><tr><td>Inner cell</td></tr></table></td></tr>
+    </table>
+    <div class="Equation" id="publisher-equation">
+      <div class="Caption"><span class="CaptionNumber">Equation 1.</span>
+        <span class="CaptionContent">A wrapped equation</span>
+      </div>
+      <math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+        <mrow><mi>x</mi><mo>=</mo><mn>2</mn></mrow>
+      </math>
+    </div>
+    <p id="mathml-sample">The expression
+      <math xmlns="http://www.w3.org/1998/Math/MathML"><mi>a</mi><mo>+</mo><mi>b</mi></math>
+      is preserved.
+    </p>
+    <p id="ruby-sample"><ruby><rb>漢字</rb><rt>かんじ</rt><rp>(</rp><rp>)</rp></ruby> is a reading.</p>
+    <p id="bidi-sample" dir="rtl">مرحبا <bdi dir="auto">mixed 42</bdi> <bdo dir="ltr">ABC</bdo> ‫نص‬.</p>
+    <p id="cross-ref">A cross-document explanation is in
+      <a epub:type="noteref" role="doc-noteref" href="Notes.xhtml#cross-note">the notes</a>.
+    </p>
+    """
+    notes_body = r"""
+    <h1 id="notes-heading">Notes</h1>
+    <aside id="cross-note" epub:type="footnote" role="doc-footnote">
+      <p>Cross-document note text.</p>
+      <a href="rich.xhtml#cross-ref">Return to the discussion.</a>
+    </aside>
+    """
+    return make_custom_epub3(
+        title="Synthetic Rich Content",
+        chapters=[("rich", "rich.xhtml", rich_body), ("notes", "Notes.xhtml", notes_body)],
     )

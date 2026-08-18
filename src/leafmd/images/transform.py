@@ -12,7 +12,7 @@ from leafmd.model.report import ConversionReport
 from leafmd.parse.hrefs import posix_join, split_fragment
 from leafmd.parse.xmlutil import attr, local_name
 
-_DANGEROUS_TABLE_TAGS = frozenset({"script", "style", "iframe", "object", "embed", "form", "svg", "math"})
+_DANGEROUS_TABLE_TAGS = frozenset({"script", "style", "iframe", "object", "embed", "form", "svg"})
 _ALLOWED_TABLE_TAGS = frozenset(
     {
         "table",
@@ -33,6 +33,7 @@ _ALLOWED_TABLE_TAGS = frozenset(
         "code",
         "sub",
         "sup",
+        "math",
     }
 )
 _CAPTION_LABELS = frozenset({"table_title", "table_caption", "figure_title", "figure_caption", "figure_table_title"})
@@ -144,11 +145,15 @@ def _safe_table(html: str) -> etree._Element | None:
         tag = local_name(getattr(node, "tag", "")).lower()
         if not tag:
             continue
+        if _has_math_ancestor(node):
+            continue
         if tag in _DANGEROUS_TABLE_TAGS:
             _drop_node(node)
             continue
         if tag not in _ALLOWED_TABLE_TAGS:
             _unwrap_node(node)
+            continue
+        if tag == "math":
             continue
         for raw_name in list(node.attrib):
             name = local_name(raw_name).lower()
@@ -160,6 +165,51 @@ def _safe_table(html: str) -> etree._Element | None:
     return table
 
 
+_PHRASING_ONLY_PARENTS = frozenset(
+    {
+        "span",
+        "a",
+        "em",
+        "strong",
+        "b",
+        "i",
+        "label",
+        "cite",
+        "abbr",
+        "dfn",
+        "kbd",
+        "samp",
+        "var",
+        "mark",
+        "time",
+        "bdi",
+        "bdo",
+        "ruby",
+        "rp",
+        "rt",
+    }
+)
+_FLOW_PARENTS = frozenset(
+    {
+        "p",
+        "div",
+        "section",
+        "article",
+        "aside",
+        "main",
+        "header",
+        "footer",
+        "blockquote",
+        "li",
+        "td",
+        "th",
+        "dd",
+        "dt",
+        "caption",
+    }
+)
+
+
 def _is_inline_occurrence(image: etree._Element) -> bool:
     parent = image.getparent()
     if parent is None:
@@ -167,7 +217,9 @@ def _is_inline_occurrence(image: etree._Element) -> bool:
     parent_tag = local_name(parent.tag).lower()
     if parent_tag == "figure":
         return False
-    if parent_tag in {"p", "span", "a", "em", "strong", "b", "i", "li", "td", "th"}:
+    if parent_tag in _PHRASING_ONLY_PARENTS:
+        return True
+    if parent_tag in _FLOW_PARENTS:
         return not _only_meaningful_child(parent, image)
     return False
 
@@ -197,6 +249,15 @@ def _replace_node(node: etree._Element, replacements: list[etree._Element], *, p
     parent.remove(node)
     for offset, replacement in enumerate(replacements):
         parent.insert(index + offset, replacement)
+
+
+def _has_math_ancestor(node: etree._Element) -> bool:
+    parent = node.getparent()
+    while parent is not None:
+        if local_name(getattr(parent, "tag", "")).lower() == "math":
+            return True
+        parent = parent.getparent()
+    return False
 
 
 def _drop_node(node: etree._Element) -> None:

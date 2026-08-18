@@ -114,7 +114,7 @@ def render_section(
     markdown = promote_leading_bold_title(normalize_text(markdown))
     for token, value in protected.items():
         markdown = markdown.replace(token, value)
-    markdown = repair_mojibake(markdown)
+# repair_mojibake is already applied by normalize_text(); do not run it after restoring protected rich HTML.
     if footnotes:
         markdown = markdown.rstrip() + "\n\n" + "\n".join(f"[^{label}]: {text}" for label, text in footnotes)
     markdown = markdown.rstrip() + "\n"

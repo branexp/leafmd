@@ -2,7 +2,7 @@
 
 ```text
 EPUB ZIP
-  → ingest guards
+  → archive inspection (ZIP validity, DRM policy, mimetype diagnostics)
   → EbookLib adapter + OPF/nav/NCX parse
   → NormalizedPublication
   → SectionPlanner (case A default; conservative case-B merges, case-C splits, virtual TOC parts)

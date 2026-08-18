@@ -1,7 +1,7 @@
 # Phase 4 — Rich-content reconstruction
 
-**Status:** implemented and acceptance-tested locally on `feat/phase4-rich-content`; not pushed or merged
-**Baseline:** `main` / `a6dee61` (`0.2.0`)  
+**Status:** implemented, acceptance-tested, and merged in PR 4
+**Baseline:** `main` / `6557909` (`0.3.0`)
 **Scope:** tables, notes, MathML preservation, ruby, and bidi-aware rendering  
 **Source of truth:** synthetic fixtures plus characterization of the three local EPUBs in `tmp-convert/`
 
@@ -35,7 +35,7 @@ The probes establish that a green validation report does not prove rich-content 
 ### Non-goals
 
 - No MathML-to-LaTeX conversion.
-- No html5lib runtime fallback; that remains Phase 5 characterization work.
+- No html5lib runtime fallback; optional recovery is planned for Phase 5.
 - No colspan/rowspan flattening.
 - No new `book.json`/`toc.json` schema version or footnote manifest.
 - No CSS/font/layout reconstruction, JavaScript, media overlays, or website sanitizer.

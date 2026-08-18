@@ -3,6 +3,7 @@ from leafmd.model.issues import IssueSeverity
 from leafmd.model.section import OutputTarget
 from leafmd.report import new_report
 from leafmd.transform.links import TargetMap, _rewrite_href
+from leafmd.validate.output import validate_book_directory
 from tests.fixtures.epub_builder import (
     make_custom_epub3,
     make_duplicate_id_book,
@@ -24,13 +25,15 @@ def test_same_file_and_cross_file_fragments(tmp_path) -> None:
     chapter_two = next(path for path in (book_dir / "content").glob("*.md") if "chapter-2" in path.name)
     text_one = chapter_one.read_text(encoding="utf-8")
     text_two = chapter_two.read_text(encoding="utf-8")
-    assert 'id="src-ch01-here"' in text_one
-    assert 'id="src-ch02-there"' in text_two
+    assert '<a id="src-ch01-here"></a>' in text_one
+    assert '<a id="src-ch02-there"></a>' in text_two
     assert f"{chapter_two.name}#src-ch02-there" in text_one
-    assert 'id="src-ch01-welcome"' in text_one
+    assert '<a id="src-ch01-welcome"></a># Chapter 1' in text_one
     toc = (book_dir / "toc.md").read_text(encoding="utf-8")
     assert "src-ch01-welcome" in toc
     assert "src-ch02-there" in toc
+    validation = validate_book_directory(book_dir)
+    assert not validation.has_errors()
 
 
 def test_duplicate_source_ids_are_reported_and_first_wins(tmp_path) -> None:

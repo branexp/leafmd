@@ -16,7 +16,12 @@ from leafmd.parse.xmlutil import attr, local_name
 from leafmd.transform.notes import analyze_notes
 from leafmd.transform.rich import is_rich_element, sanitize_rich_tree
 from leafmd.transform.tables import classify_table
-from leafmd.transform.textnorm import normalize_text, promote_leading_bold_title
+from leafmd.transform.textnorm import (
+    collapse_inline_whitespace,
+    normalize_text,
+    promote_leading_bold_title,
+    repair_mojibake,
+)
 
 
 class LeafmdConverter(MarkdownConverter):
@@ -91,6 +96,7 @@ def render_section(
     targets: dict[tuple[str, str | None], OutputTarget],
 ) -> str:
     body = body_element(root)
+    _normalize_source_whitespace(body)
     _inject_explicit_anchors(body, plan, targets)
     sanitize_rich_tree(body)
     protected: dict[str, str] = {}
@@ -108,6 +114,7 @@ def render_section(
     markdown = promote_leading_bold_title(normalize_text(markdown))
     for token, value in protected.items():
         markdown = markdown.replace(token, value)
+# repair_mojibake is already applied by normalize_text(); do not run it after restoring protected rich HTML.
     if footnotes:
         markdown = markdown.rstrip() + "\n\n" + "\n".join(f"[^{label}]: {text}" for label, text in footnotes)
     markdown = markdown.rstrip() + "\n"
@@ -303,6 +310,38 @@ def _inject_explicit_anchors(
                 body.insert(0, anchor)
             else:
                 parent.insert(list(parent).index(node), anchor)
+
+
+_PRESERVE_WHITESPACE_TAGS = frozenset({"code", "pre", "script", "style", "textarea"})
+
+
+def _normalize_source_whitespace(root: etree._Element) -> None:
+    """Collapse source line wrapping without changing block structure.
+
+    HTML renderers collapse ordinary whitespace inside prose, while
+    ``markdownify`` otherwise preserves source newlines as Markdown newlines.
+    Normalize text owned by ordinary elements before conversion, but leave
+    code/pre content and rich markup byte-for-byte at this stage.
+    """
+
+    for node in root.iter():
+        if not isinstance(node.tag, str) or _preserves_whitespace(node):
+            continue
+        if node.text:
+            node.text = collapse_inline_whitespace(node.text)
+        for child in node:
+            if child.tail:
+                child.tail = collapse_inline_whitespace(child.tail)
+
+
+def _preserves_whitespace(node: etree._Element) -> bool:
+    tag = local_name(node.tag).lower()
+    if tag in _PRESERVE_WHITESPACE_TAGS or is_rich_element(node):
+        return True
+    return any(
+        local_name(parent.tag).lower() in _PRESERVE_WHITESPACE_TAGS or is_rich_element(parent)
+        for parent in node.iterancestors()
+    )
 
 
 def _as_bs4(element: etree._Element) -> Any:

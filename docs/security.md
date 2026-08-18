@@ -4,11 +4,15 @@ Treat every EPUB as hostile.
 
 ## Ingest
 
-- Reject `..`, absolute paths, and names that escape the archive root
-- Limit entry count, uncompressed size, single-member size, and compression ratio
+- Reject malformed ZIP/EPUB archives
 - Reject `META-INF/encryption.xml`
+- Read package members directly; never extract archive names to the filesystem
 - Parse XML with entity resolution off and no network
-- Do not extract the whole archive to disk
+
+This private-library tool intentionally does not impose ZIP-bomb size/count or
+archive-member path filters. It does not use member names as output paths. The
+generated book directory is produced from normalized package metadata and
+slugified output names.
 
 ## Transform
 

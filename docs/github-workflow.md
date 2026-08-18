@@ -20,7 +20,7 @@ Do not commit to `main` after the seed push except for emergency hotfix with Bra
 
 ## What already landed on `main`
 
-The repo was seeded with the Phase 1 tree and has since merged the first three implementation PRs:
+The repo was seeded with the Phase 1 tree and has since merged four implementation PRs:
 
 - scaffolded converter / inspect / validate / report
 - P1-0 quality-gate collection fix
@@ -29,8 +29,9 @@ The repo was seeded with the Phase 1 tree and has since merged the first three i
 - PR 1: Copilot review instructions
 - PR 2: link, asset, and validator correctness
 - PR 3: semantic reconstruction (cover discovery, evidence-ranked classification, planner B/C, and text cleanup)
+- PR 4: rich-content reconstruction (tables, notes, MathML, ruby, bidi, and validation)
 
-The current Phase 4 work is on `feat/phase4-rich-content` and is intended to go out as one PR after local documentation and quality-gate review. Track push and merge status on GitHub; do not infer it from local commits.
+The next planned work is Phase 5 robustness; see [phase5-robustness.md](phase5-robustness.md). Track push and merge status on GitHub; do not infer it from local commits.
 
 ## Branch naming
 

@@ -226,7 +226,7 @@ def make_guide_cover_book(*, xhtml_cover: bool = False, jpeg: bool = False) -> b
     return _write_epub(members)
 
 
-def make_zip_slip() -> bytes:
+def make_unusual_member_name() -> bytes:
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as archive:
         archive.writestr("mimetype", "application/epub+zip")

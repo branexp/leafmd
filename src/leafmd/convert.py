@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from leafmd.errors import FatalConversionError
+from leafmd.images import ImageAnalyzer
 from leafmd.ingest.archive import inspect_epub_archive
 from leafmd.model.issues import IssueSeverity
 from leafmd.model.report import ConversionReport
@@ -20,6 +21,7 @@ def convert_epub(
     output_dir: Path | None = None,
     *,
     strict: bool = False,
+    image_analyzer: ImageAnalyzer | None = None,
 ) -> tuple[Path, ConversionReport]:
     report = new_report()
     archive = inspect_epub_archive(epub_path, report)
@@ -33,7 +35,7 @@ def convert_epub(
         raise FatalConversionError("PLAN_NO_SECTIONS", "No convertible content documents in the spine")
 
     book_dir = output_dir or Path(slugify(publication.metadata.title, fallback="book"))
-    write_book_directory(publication, plans, book_dir, report)
+    write_book_directory(publication, plans, book_dir, report, image_analyzer=image_analyzer)
     if strict:
         _promote_strict(report)
     write_report(book_dir, report)

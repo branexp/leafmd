@@ -42,10 +42,10 @@ def child_text(element: etree._Element | None) -> str:
 def attr(element: etree._Element, *names: str) -> str | None:
     for name in names:
         value = element.get(name)
-        if value:
+        if isinstance(value, str) and value:
             return value
         if "}" not in name:
             for key, candidate in element.attrib.items():
-                if local_name(key) == name and candidate:
+                if local_name(key) == name and isinstance(candidate, str) and candidate:
                     return candidate
     return None

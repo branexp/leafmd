@@ -12,6 +12,7 @@ from rich.table import Table
 from leafmd import __version__
 from leafmd.convert import convert_epub
 from leafmd.errors import FatalConversionError, UsageError
+from leafmd.images.paddle import PaddleCliAnalyzer
 from leafmd.inspect_cmd import inspect_epub
 from leafmd.model.issues import IssueSeverity
 from leafmd.model.report import ConversionReport
@@ -33,12 +34,18 @@ def convert_cmd(
     book: Path = typer.Argument(..., exists=True, readable=True, help="EPUB file"),
     output: Path | None = typer.Option(None, "--output", "-o", help="Output book directory"),
     strict: bool = typer.Option(False, "--strict", help="Promote selected warnings to errors"),
+    convert_images: bool = typer.Option(
+        False,
+        "--convert-images",
+        help="Recover Markdown-representable raster content with external PaddleOCR PP-StructureV3",
+    ),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Print warnings"),
     debug: bool = typer.Option(False, "--debug", help="Print info/debug issues"),
 ) -> None:
     """Convert one EPUB into a canonical Markdown book directory."""
     try:
-        book_dir, report = convert_epub(book, output, strict=strict)
+        image_analyzer = PaddleCliAnalyzer() if convert_images else None
+        book_dir, report = convert_epub(book, output, strict=strict, image_analyzer=image_analyzer)
     except FatalConversionError as exc:
         err_console.print(f"[red]fatal[/red] {exc.code}: {exc}")
         raise typer.Exit(code=2) from exc

@@ -7,6 +7,9 @@ from pathlib import Path
 from typing import Any
 
 from leafmd import __version__
+from leafmd.images import ImageAnalyzer
+from leafmd.images.pipeline import analyze_publication_images
+from leafmd.images.transform import apply_image_conversions
 from leafmd.model.publication import NormalizedPublication
 from leafmd.model.report import ConversionReport
 from leafmd.model.section import SectionPlan
@@ -25,12 +28,21 @@ def write_book_directory(
     plans: list[SectionPlan],
     output_dir: Path,
     report: ConversionReport,
+    *,
+    image_analyzer: ImageAnalyzer | None = None,
 ) -> Path:
     book_dir = output_dir
     book_dir.mkdir(parents=True, exist_ok=True)
     (book_dir / "content").mkdir(exist_ok=True)
 
     asset_map = collect_and_copy_assets(publication, plans, book_dir, report)
+    if image_analyzer is not None:
+        report.stats.image_analysis_enabled = True
+    image_analyses = (
+        analyze_publication_images(publication, asset_map, book_dir, image_analyzer, report)
+        if image_analyzer is not None
+        else {}
+    )
     targets = build_target_map(publication, plans, report)
 
     generated = 0
@@ -47,6 +59,7 @@ def write_book_directory(
             root = parse_document(resource.content)
             if source.start_id or source.end_id:
                 root = slice_document(root, source.start_id, source.end_id)
+            apply_image_conversions(root, path, image_analyses, report)
             rewrite_tree(root, path, targets, asset_map, report, plan.output_path)
             roots.append(root)
         if not roots:

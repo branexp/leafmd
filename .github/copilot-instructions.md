@@ -2,51 +2,49 @@
 
 These rules apply to every pull request. Path-specific rules live in `.github/instructions/`.
 
-leafmd is a **private personal-library CLI**. It compiles hostile EPUB 2/3 input into a regenerate-only Markdown book directory. It is not a website, not a public upload service, and not an EPUB editor.
+leafmd is a **public repository for a local/personal-library CLI**. It compiles hostile EPUB 2/3 input into a regenerate-only Markdown book directory. It is not a website, upload service, or EPUB editor.
 
 ## Product invariants — flag violations
 
-- EPUB is the source of truth. Output is regenerate-only. Do not add edit overlays, caches, or incremental convert.
-- Our OPF / nav / NCX parse is authoritative. Never use EbookLib `book.toc`.
-- Nothing above `leafmd.parse.ebooklib_adapter` may import `ebooklib`.
-- Planner default remains case A (one spine XHTML → one Markdown file). The shipped P3 contract also supports evidence-ranked cases B/C and virtual TOC parts; preserve that contract and require an explicit ticket for any new planner behavior. Keep `linear="no"` as its own file.
-- `linear="no"` stays as its own file and must emit `PLAN_NONLINEAR`. Do not drop it.
-- Compatibility anchors are explicit HTML `<a id="src-<stem>-<id>"></a>`. Heading slugs / github-slugger ids are not the contract.
-- TOC fragments in `toc.json` / `toc.md` must go through the same global target map as content links. Never emit raw EPUB ids.
-- Allowed URL schemes: `http`, `https`, `mailto`, plus internal relative links. Drop `javascript:`, `data:`, `file:`, `vbscript:`, and unknown schemes.
-- No network I/O during convert/inspect/validate. Do not fetch remote images.
-- Copy referenced JPEG/PNG/GIF/WebP/SVG and the cover. Skip fonts/CSS/JS/audio/video/SMIL with `MEDIA_SKIPPED`.
-- MathML stays raw HTML. No MathML→LaTeX in v1.
-- Converter output is **not** a public-HTML trust boundary. Do not claim the site sanitizer is done here.
+- EPUB is the source of truth. Generated output is regenerate-only; do not add an edit overlay or silently make caches/incremental state authoritative.
+- Direct OPF/nav/NCX parsing is authoritative. Never use EbookLib `book.toc`, and do not import `ebooklib` above `leafmd.parse.ebooklib_adapter`.
+- Planner case A remains the default, with the shipped conservative merge/split and virtual-TOC behavior preserved. Keep `linear="no"` as its own file and keep `PLAN_NONLINEAR` reporting.
+- Compatibility anchors are explicit HTML `<a id="src-<stem>-<id>"></a>`. TOC/content fragments must use the same global `TargetMap`; do not substitute heading slugs or raw EPUB ids.
+- Keep only `http`, `https`, `mailto`, and internal relative links. Drop unsafe/unknown schemes. Never fetch remote EPUB assets.
+- Copy supported referenced image assets and the cover; unsupported media remains skipped/reported.
+- Source MathML stays sanitized raw HTML. Optional OCR-derived formulas may be LaTeX only through the explicit image-analysis path.
+- `--convert-images` stays opt-in. PaddleOCR remains an external executable/dependency, original assets stay copied, and analyzer failures must not destroy otherwise convertible books.
+- `convert` and `validate` are separate operations; do not document or implement automatic validation unless that contract is deliberately changed.
+- Converter output is **not** a public-HTML trust boundary.
 
 ## Security — treat as blocking
 
-- Reject zip-slip (`..`, absolute paths, backslash, drive letters).
-- Enforce ingest caps (entry count, uncompressed size, member size, ratio).
-- Reject `META-INF/encryption.xml` / DRM. Do not bypass DRM.
-- XML parse: entity resolution off, no network, no DTD expansion.
-- Drop `script`, `iframe`, `object`, `embed`, `form`, and `on*` handlers.
-- Sanitize SVG: no script, no event attrs, no external http refs.
-- Never commit copyrighted EPUBs, converted personal libraries, `.corpus/`, or `LEAFMD_CORPUS` trees.
+- Reject DRM/`META-INF/encryption.xml`; never add DRM bypass behavior.
+- Keep XML entity resolution, DTD loading/validation, and parser network access disabled.
+- Archive members are read in place, not extracted. Current ingest intentionally has no ZIP-bomb limits or member-path filter; do not claim those protections exist. If extraction or resource-budget policy is added later, review it as a new security boundary.
+- Drop active HTML and event handlers; keep unsafe URL schemes out of emitted content.
+- Preserve the existing SVG hardening and do not describe it as parse-based/full sanitization while it remains regex-based.
+- Core conversion must not add network clients or remote-asset/model fetching. The opt-in external Paddle process is a separate boundary and may have backend-specific model/cache behavior outside leafmd.
+- Generated output paths and validator-resolved links/TOC targets must stay inside the book directory.
+- Never commit copyrighted EPUBs, converted personal libraries, `.corpus/`, `LEAFMD_CORPUS` trees, model caches, or secrets.
 
 ## Review style
 
-- Be specific and actionable. Cite the invariant or file.
-- Prefer correctness and hostile-input safety over refactors.
-- Do not request website, SWAG/DNS, PyPI, public GitHub, config files, or a daemon.
-- Do not re-litigate frozen decisions in `docs/implementation-plan.md` §2.
-- One §8 ticket per PR. Flag drive-by file changes outside the stated write-scope.
-- Copilot reviews leave comments only. Do not try to block merge or rewrite the PR overview.
+- Be specific and actionable. Cite code/docs that establish the current contract.
+- Prefer correctness, fidelity, and hostile-input safety over refactors.
+- Use `README.md`, `docs/architecture.md`, `docs/canonical-format.md`, and `docs/security.md` as current documentation. `docs/implementation-plan.md` is historical planning context, not a frozen source of truth.
+- Flag unrelated file churn, but do not require historical phase/ticket ids.
+- Behavior/public-CLI changes should update `CHANGELOG.md`; release changes must keep both version declarations synchronized.
 
 ## Quality gate
 
-PRs must stay green:
+PRs must stay green under the same commands as CI:
 
 ```bash
-ruff check src tests
-ruff format --check src tests
-mypy
-python -m pytest
+uv run ruff check src tests
+uv run ruff format --check src tests
+uv run mypy
+uv run python -m pytest -m "not online and not private and not differential and not epubcheck"
 ```
 
-CI must not update goldens. Golden refresh is an explicit local flag and a reviewed PR.
+Default CI must not update goldens, access a private corpus, download models, or require optional external services.

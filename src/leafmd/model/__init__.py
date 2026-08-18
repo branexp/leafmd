@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from leafmd.model.images import ImageAnalysis, ImageBlock, ImageBlockKind, ImageDecision
 from leafmd.model.issues import ConversionIssue, IssueSeverity
 from leafmd.model.publication import (
     BookMetadata,
@@ -18,6 +19,10 @@ __all__ = [
     "ConversionIssue",
     "ConversionReport",
     "ConversionStats",
+    "ImageAnalysis",
+    "ImageBlock",
+    "ImageBlockKind",
+    "ImageDecision",
     "IssueSeverity",
     "NavNode",
     "NormalizedPublication",

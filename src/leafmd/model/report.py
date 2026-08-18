@@ -13,15 +13,28 @@ class ConversionStats:
     images_copied: int = 0
     unresolved_links: int = 0
     assets_skipped: int = 0
+    images_analyzed: int = 0
+    image_replacements: int = 0
+    image_analysis_failures: int = 0
+    image_analysis_enabled: bool = field(default=False, repr=False, compare=False)
 
     def to_dict(self) -> dict[str, int]:
-        return {
+        result = {
             "source_documents": self.source_documents,
             "generated_files": self.generated_files,
             "images_copied": self.images_copied,
             "unresolved_links": self.unresolved_links,
             "assets_skipped": self.assets_skipped,
         }
+        if self.image_analysis_enabled:
+            result.update(
+                {
+                    "images_analyzed": self.images_analyzed,
+                    "image_replacements": self.image_replacements,
+                    "image_analysis_failures": self.image_analysis_failures,
+                }
+            )
+        return result
 
 
 ReportStatus = Literal["ok", "completed_with_warnings", "completed_with_errors", "fatal"]

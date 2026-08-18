@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Document the opt-in `leafmd convert --convert-images` semantic recovery path for referenced JPEG/PNG/WebP assets via an external PaddleOCR PP-StructureV3 executable; PaddleOCR remains outside leafmd's Python dependency graph.
+- Document that visual, ambiguous, unsupported, cover, GIF, and SVG images are preserved; only safely representable text/table/formula results are reconstructed, with inline replacement limited to formulas.
+- Document original-asset retention even when Markdown occurrences are replaced, fail-open behavior after analyzer failures, and the optional image-analysis counters/issues in `conversion-report.json`.
+
 ## 0.3.1 — 2026-08-17
 
 Pre-Phase 5 correctness fixes.

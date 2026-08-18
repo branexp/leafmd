@@ -1,9 +1,9 @@
-# leafmd — Final Implementation Plan
+# leafmd — Historical implementation plan
 
-**Status:** Phase 3 is merged on `main` (`a6dee61`, 0.2.0), and Phase 4 is merged in PR 4 (`6557909`, 0.3.0). Pre-Phase 5 correctness fixes are versioned `0.3.1` on this working branch. Phase 5 is planned in [phase5-robustness.md](phase5-robustness.md); no Phase 5 production implementation has started.
-**Date:** 2026-08-17
-**Repo:** `/home/clawdbot/clawd/projects/leafmd` → private `https://github.com/branexp/leafmd`  
-**This file is the working build plan.** Use it instead of the original chat plan. GitHub/PR workflow: [github-workflow.md](github-workflow.md).
+> **Archived:** this is the 2026-08-17 implementation record, retained for history. It is not the current behavior contract or work queue. Use [README.md](../README.md), [architecture.md](architecture.md), [canonical-format.md](canonical-format.md), [security.md](security.md), and [github-workflow.md](github-workflow.md) for current documentation.
+
+**Snapshot:** Phase 3 had shipped as `0.2.0`, Phase 4 as `0.3.0`, and pre-robustness fixes as `0.3.1`. Current `main` also contains opt-in `--convert-images` support that post-dates this plan.
+**Repository:** `https://github.com/branexp/leafmd` is public now; it was private when much of this plan was written.
 
 **Core idea:** parsing EPUB is mostly solved. The product is reconstructing a useful, human-readable semantic book from messy packages.
 
@@ -11,15 +11,15 @@
 
 ## 0. How to use this document
 
-- Parent agent owns architecture, format contract, security, and reviews.
-- Subagents implement isolated tickets listed in §8. Do not reopen §2.
-- GitHub remote is `branexp/leafmd` (private). Push remaining tickets as PRs per [github-workflow.md](github-workflow.md). Still do not touch SWAG/DNS/firewall or start a site unless Brandon asks.
+- Treat the phase/ticket sections below as historical traceability, not current assignment instructions.
+- Current architecture, format, security, and review rules live in the current docs and `.github/` instructions.
+- GitHub remote is `branexp/leafmd` and is public. Use [github-workflow.md](github-workflow.md) for current branch/PR policy.
 - Do not vendor copyrighted EPUBs. Synthetic fixtures only in git.
-- Quality gate before calling any ticket done: `python -m pytest`, `ruff check src tests`, `ruff format --check src tests`, `mypy`.
+- Current CI-equivalent commands are documented in [development.md](development.md).
 
 ---
 
-## 1. Honest current state (2026-08-17)
+## 1. Historical snapshot (2026-08-17)
 
 This is **not greenfield**. The original 2026-08-16 planning session produced the architecture; a later pass scaffolded the private repo and a Phase 1 vertical slice.
 
@@ -48,9 +48,9 @@ This is **not greenfield**. The original 2026-08-16 planning session produced th
 3. Optional EPUBCheck runner (P1-5); not an MVP blocker, and the current CLI does not accept `--epubcheck`.
 4. html5lib is characterization-only (`@pytest.mark.differential`); not a runtime dep.
 5. Phase 3 (P3-1…P3-4) is implemented. Goldens remain open before MVP acceptance; the dedicated P1-4 docs are a documentation follow-up, not a Phase 4 implementation blocker.
-6. Phase 4 corpus findings and tickets are recorded in [phase4-rich-content.md](phase4-rich-content.md). The three local probe EPUBs are characterization inputs only and must not enter git.
+6. Phase 4 rich-content behavior is now documented in [canonical-format.md](canonical-format.md) and [architecture.md](architecture.md); the standalone Phase 4 plan was removed.
 7. Phase 4 implementation is merged: P4-1 through P4-6 are integrated; the synthetic suite, deterministic conversion checks, validation, ruff, and mypy gates are green. The three private probe EPUBs were manually reconverted and validated locally; they are not committed or part of CI.
-8. Phase 5 scope and acceptance gates are recorded in [phase5-robustness.md](phase5-robustness.md). It is planned work, not a claim about current runtime behavior.
+8. The standalone Phase 5 plan was removed. Runtime recovery, EPUBCheck, and SVG-hardening gaps are listed as unimplemented work in current docs instead of a frozen phase contract.
 
 Phase 4 is intentionally conservative: preserve content when a lossless Markdown representation is not proven, keep the existing schema/anchor contract, and do not add html5lib or MathML-to-LaTeX.
 
@@ -63,7 +63,7 @@ Phase 4 is intentionally conservative: preserve content when a lossless Markdown
 | 2 Link/asset correctness | Coded this pass (P2-1…P2-5). |
 | 3 Semantic reconstruction | Coded this pass (P3-1…P3-4). Hall reconvert is the acceptance check, not a golden. |
 | 4 Rich content | Merged in PR 4 (`0.3.0`); P4-1…P4-6 integrated and acceptance-tested. |
-| 5 Robustness | Planned; detailed in [phase5-robustness.md](phase5-robustness.md). Current tree has only the earlier html5lib characterization spike. |
+| 5 Robustness | Historical planned phase; html5lib remains characterization-only and EPUBCheck remains unimplemented. |
 | 6 Library integration | Not started. Remote exists; no library convert yet. |
 
 ---
@@ -73,7 +73,7 @@ Phase 4 is intentionally conservative: preserve content when a lossless Markdown
 Do not reopen these during implementation.
 
 1. **Name:** repo / package / CLI / import are all `leafmd`.
-2. **Visibility:** private until v0.1. Remote is `branexp/leafmd`. Still no public release / PyPI unless asked.
+2. **Visibility (historical):** this plan assumed a private repo. `branexp/leafmd` is public now; PyPI publishing is still not configured.
 3. **Distribution:** personal library only. Not a public upload service.
 4. **Source of truth:** EPUB. Output is regenerate-only. No edit overlay in v1.
 5. **Future site host:** `book.pettee.org` later. Converter stays SSG-agnostic.
@@ -88,7 +88,7 @@ Do not reopen these during implementation.
 14. **Links:** keep `http` / `https` / `mailto`. Drop `javascript:`, `data:`, `file:`, `vbscript:`, and unknown schemes. No network I/O.
 15. **Assets:** copy referenced JPEG/PNG/GIF/WebP/SVG and the cover. Skip fonts/CSS/JS/audio/video/SMIL with `MEDIA_SKIPPED`.
 16. **Math:** preserve MathML as raw HTML. No MathML→LaTeX in v1.
-17. **Notes / rich tables / ruby / bidi:** implemented in Phase 4 under the conservative contracts in `docs/phase4-rich-content.md`. Do not promise richer behavior than those contracts.
+17. **Notes / rich tables / ruby / bidi:** implemented conservatively; current behavior is documented in `docs/canonical-format.md` and the renderer/tests.
 18. **EPUBCheck:** planned only; the current CLI does not accept `--epubcheck`. If implemented later, store results under `source_validation` and never mix them into converter issues.
 19. **Trust:** `untrusted EPUB → leafmd → library-trusted book dir → site sanitizer → public HTML`. Converter output is not a public-HTML trust boundary.
 20. **Toolchain:** uv, setuptools, ruff, pytest, mypy. No Pandoc, no Pydantic-everywhere, no tox/nox, no PyPI until asked.
@@ -206,7 +206,7 @@ These are real bugs in current code, not future features.
 ## 6. CLI contract
 
 ```text
-leafmd convert BOOK.epub [--output DIR] [--strict] [--verbose] [--debug]
+leafmd convert BOOK.epub [--output DIR] [--strict] [--convert-images] [--verbose] [--debug]
 leafmd inspect BOOK.epub [--json]
 leafmd validate BOOKDIR [--json]
 leafmd report BOOKDIR
@@ -218,10 +218,11 @@ leafmd version
 | 0 | ok / warnings only |
 | 1 | completed with errors |
 | 2 | fatal or CLI usage error |
-| 3 | reserved for future application-level usage errors |
+| 3 | application usage/configuration error (for example requested PaddleOCR executable unavailable) |
 
 - v1 is single-book. Recursive batch is Phase 6.
 - `--strict` promotes `LINK_UNRESOLVED`, `ASSET_MISSING`, `RENDER_MISSING_SOURCE` to errors (already sketched in `convert.py`).
+- `--convert-images` is current, opt-in behavior. It uses an external PaddleOCR PP-StructureV3 executable and preserves source images on fail-open paths.
 - `--epubcheck` is planned only and is not currently accepted by the CLI; if added later it remains an optional, non-blocking source validation path.
 
 ---
@@ -268,11 +269,11 @@ GFM footnotes for simple notes; complex notes preserved; rectangle+header GFM ta
 
 ### Phase 5 — robustness (planned)
 
-See [phase5-robustness.md](phase5-robustness.md) for the detailed contract. The phase covers approved goldens and recovery baselines, lxml-first optional html5lib recovery for spine content, malformed/hostile archive and XML fixtures, parse-based SVG sanitization, an opt-in no-network Docker EPUBCheck runner, and private-corpus characterization. It does not change the canonical schema, anchor contract, or default offline install.
+The former detailed Phase 5 document was removed during the documentation audit. Those items remain possible future work only where current docs/code still identify a gap: approved goldens, optional html5lib recovery, stronger SVG sanitization, EPUBCheck integration, and private-corpus characterization.
 
 ### Phase 6 — library integration
 
-`leafmd convert DIR --recursive`, `library/books/<slug>/` convention. Still no daemon. Private GitHub repo is `branexp/leafmd`.
+`leafmd convert DIR --recursive`, `library/books/<slug>/` convention. Still no daemon. GitHub repo is `branexp/leafmd`.
 
 ### Explicitly deferred
 
@@ -515,9 +516,9 @@ Already covered: valid-ZIP detection, DRM, XXE non-expansion, unsafe URL schemes
 | Correctness | Preferred over speed |
 | Scale | 1–300 books, offline |
 | Perf | Typical 300-page book in a few seconds |
-| Memory | Refuse above ingest caps (200 MB uncompressed / 20 MB member / 20k entries / ratio 100) |
+| Memory | Current ingest has no explicit ZIP entry/member/ratio limits; archive members are read in place and not extracted |
 | Availability | CLI, not a service |
-| Security | Hostile input; no network |
+| Security | Hostile input; core does not fetch remote EPUB resources; optional external analyzers are a separate boundary |
 | Maintainability | Typed models, goldens, small pipeline surface |
 
 ---
@@ -526,7 +527,7 @@ Already covered: valid-ZIP detection, DRM, XXE non-expansion, unsafe URL schemes
 
 1. Semantic planning unbounded → ship A now; B/C behind fixtures.
 2. EbookLib TOC lies on EPUB 3 → already mitigated; keep ignoring `book.toc`.
-3. Malformed XHTML → recover + report; html5lib is Phase 5.
+3. Malformed XHTML → current parser uses lxml XML then lxml HTML recovery; html5lib remains characterization-only.
 4. Astro sanitizer vs raw HTML/MathML/SVG → site problem later; converter still emits explicit anchors.
 5. AGPL if this becomes a hosted converter → keep it a local CLI.
 6. Copyrighted fixtures in git → synthetics only.
@@ -541,18 +542,18 @@ Already covered: valid-ZIP detection, DRM, XXE non-expansion, unsafe URL schemes
 - Do not spawn research swarms unless a dependency changes.
 - Coding-agent skill is fine for a large isolated ticket; not for one-file edits.
 - Durable product facts can be folded into `MEMORY.md` after Brandon is using the tool. Until then, this file is enough.
-- Remote exists. Ask before force-push, history rewrite, making the repo public, or PyPI publish.
+- Remote exists and is public. Avoid force-push/history rewrite; PyPI publishing remains separate explicit release work.
 
 ---
 
 ## 13. Need from Brandon (nothing blocking the Phase 4 PR)
 
-Already answered and locked:
+Historical answers at the time of this snapshot:
 
-1. private  
+1. private at the time; repository is public now
 2. `leafmd`  
 3. personal library only  
 4. regenerate-only  
 5. `book.pettee.org`
 
-EPUBCheck is intentionally deferred to the optional P1-5 / Phase 5 work described in [phase5-robustness.md](phase5-robustness.md). The current CLI does not accept `--epubcheck`; normal conversion and CI do not depend on Docker or host Java. GitHub remote is created.
+EPUBCheck remains unimplemented; the current CLI does not accept `--epubcheck`, and normal conversion/CI do not depend on Docker or host Java. The standalone Phase 5 planning document has been removed.

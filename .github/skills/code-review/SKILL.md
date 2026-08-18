@@ -1,100 +1,82 @@
 ---
 name: code-review
-description: "Review leafmd pull requests for hostile-EPUB safety, parser/anchor contracts, write-scope, and missing tests. Use for Copilot code review and any PR review of this repository."
+description: "Review leafmd pull requests for hostile-EPUB safety, parser/anchor/image-analysis contracts, scope, and missing tests. Use for Copilot code review and any PR review of this repository."
 ---
 
 # leafmd code review
 
-Use this skill on every leafmd pull request. Directory name is `code-review` so Copilot code review loads it.
+Use this skill on leafmd pull requests. Custom instructions hold standing rules; this file is the review procedure.
 
-Custom instructions hold standing rules. This skill is the **review procedure**. Do not restate the whole product spec.
+Read first:
 
-Read first, in this order:
-
-1. PR title and body (ticket id, write-scope, “not in this PR”)
-2. Diff only, plus nearby call sites you must understand
+1. PR title/body and stated scope
+2. Diff plus only the nearby call sites needed to understand it
 3. `.github/copilot-instructions.md`
-4. Matching `.github/instructions/*.instructions.md` for touched paths
-5. `docs/implementation-plan.md` §2 only if an invariant is in dispute
+4. Matching `.github/instructions/*.instructions.md`
+5. Current contract docs (`README.md`, architecture, canonical-format, security) when behavior is in dispute
 
-Do not follow links to Flatnotes or off-repo docs. If a rule is not in this repo, do not invent it.
+`docs/implementation-plan.md` is historical context, not a frozen specification.
 
 ## Severity
 
-Use these labels in comments. Do not try to block merge.
+- **Blocker:** DRM bypass; XML entity/DTD/network regression; core remote fetch; active-content/scheme escape; output path escape; raw EPUB ids breaking TOC/anchor integrity; EbookLib leaking above its adapter; copyrighted/private data committed
+- **Must-fix:** broken shipped contract such as missing `src-*` anchors, fragment loss, dropped `linear="no"`, unsafe image-analyzer replacement, missing fail-open behavior, or CI-breaking typing/runtime errors
+- **Should-fix:** missing regression test, unrelated churn, unstable message-only assertion, misleading docs/security claim, behavior/public-CLI change without an `Unreleased` changelog entry, or release version mismatch
+- **Nit:** style only when it would fail configured tooling; skip taste nits
 
-- **Blocker:** security hole, DRM bypass, network I/O, zip-slip, XXE/DTD, raw EPUB ids in TOC, EbookLib import above the adapter, copyrighted EPUB committed, output path escape
-- **Must-fix:** broken Phase 1 contract (case A planner, missing `src-…` anchors, `posix_join` dropping fragments, dropped `linear="no"`, missing report code, CI-breaking types)
-- **Should-fix:** missing regression test, write-scope leak, unstable assertion on message text, golden update mixed into a behavior PR, behavior PR missing version bump + CHANGELOG entry
-- **Nit:** style only if ruff/mypy would fail. Skip taste nits.
+If nothing reaches should-fix, keep the review summary short.
 
-If nothing rises to should-fix or above, say so in one short summary. Do not pad.
+## Pass 1 — scope and metadata
 
-## Pass 1 — scope and intent
+- Confirm the PR has one coherent purpose; flag unrelated production/docs/test churn.
+- Docs-only PRs should not silently change production behavior.
+- Test-only PRs may add explicit characterization coverage but should not normalize intentional default-suite failures.
+- Behavior/public-CLI changes should update `CHANGELOG.md` under `Unreleased`. Release PRs must keep `pyproject.toml` and `src/leafmd/__init__.py` versions identical.
 
-- Confirm one §8 ticket (or an explicit hygiene PR). Flag unrelated file churn.
-- Production PRs should not silently rewrite goldens, site/SWAG, or PyPI.
-- Docs-only PRs should not change `src/`.
-- Test-only PRs may add failing characterization tests. Phase 3 split/merge is allowed only when the PR/ticket is an explicit P3 ticket.
-- Behavior PRs that change convert output or public CLI **must** bump the version in both `pyproject.toml` and `src/leafmd/__init__.py` (same value) and add a `CHANGELOG.md` entry under that version. Flag as should-fix if either is missing. Docs-only and test-only PRs do not bump unless the ticket says so.
+## Pass 2 — hostile input and external boundaries
 
-## Pass 2 — hostile input
+For ingest/parse/transform/render/validate/image changes, check the boundaries actually implemented:
 
-On any ingest/parse/transform/validate change, look for:
+- `META-INF/encryption.xml` / DRM remains rejected
+- XML entity resolution, DTD loading/validation, and parser network access remain off
+- archive code still reads members in place; do not invent ZIP-bomb/member-path requirements that current policy intentionally omits
+- active HTML/event handlers and unsafe URL schemes do not survive
+- remote EPUB assets are not fetched
+- SVG hardening is not weakened and is not falsely treated as a complete sanitizer
+- output/validator paths cannot escape the generated book directory
+- optional analyzers remain opt-in and external; leafmd does not silently install/fetch Paddle/models
+- analyzer failures/missing/unsupported results preserve original images and do not abort otherwise valid conversion after startup
+- recovered table HTML is sanitized before entering the normal renderer
 
-- zip-slip (`..`, absolute, backslash, drive letter)
-- bomb limits bypassed or raised without justification
-- `encryption.xml` / DRM accepted
-- XML entity resolution, network, or DTD enabled
-- `script` / `iframe` / `object` / `embed` / `form` / `on*` surviving rewrite
-- unsafe URL schemes kept
-- SVG script, event attrs, or external http refs
-- remote asset fetch
-- book-dir path escape in writer or validator
-
-No finding is not a skip. Say “hostile-input paths unchanged” if the diff does not touch them.
+If hostile-input paths are untouched, say so rather than manufacturing a finding.
 
 ## Pass 3 — leafmd contracts
 
-Flag if the diff:
+Flag diffs that:
 
-- imports `ebooklib` outside `leafmd.parse.ebooklib_adapter`
-- uses `book.toc` as truth
-- implements in-file split or multi-file merge without an explicit P3 ticket
-- emits heading slugs instead of `<a id="src-<stem>-<id>"></a>`
-- writes original EPUB fragment ids into `toc.json` / `toc.md`
-- joins hrefs without preserving `#fragment`
-- concatenates TOC/output paths instead of using `TargetMap`
-- fetches or downloads anything during convert/inspect/validate
-- treats converter Markdown as safe public HTML
+- import `ebooklib` outside `leafmd.parse.ebooklib_adapter` or use `book.toc` as truth
+- replace explicit `src-*` anchors with heading slugs
+- write raw EPUB fragments into `toc.json`/`toc.md`
+- join hrefs without preserving fragments or bypass `TargetMap`
+- change planner merge/split defaults without focused regression coverage
+- make `convert` implicitly run/alter `validate` without an explicit CLI/output-contract decision
+- add Paddle/PaddleOCR as a leafmd runtime dependency rather than using the analyzer boundary
+- convert source MathML to LaTeX (OCR-derived raster formulas are a separate opt-in path)
+- remove original image assets merely because an occurrence was semantically replaced
+- treat canonical Markdown/raw HTML as safe public HTML
 
 ## Pass 4 — tests
 
-- New behavior or bug fix needs a test.
-- Assert issue **codes**, not message substrings.
-- Security-path changes need a hostile fixture.
-- Goldens: no `--update-goldens` in CI; no blessing trees in the same PR as output changes unless the ticket is a golden update.
-- No network, no sleeps, no home-directory writes, no copyrighted EPUBs.
+- New behavior/bug fixes need focused tests.
+- Assert stable issue codes, not only message substrings.
+- Security-path changes need hostile synthetic fixtures for the affected boundary.
+- Image-analysis tests should fake/mock the backend in default CI and cover preserve/replace/failure/context behavior.
+- No network, model downloads, sleeps, home-directory writes, copyrighted EPUBs, private corpus data, or model caches.
 
 ## Pass 5 — comment shape
 
-Each comment:
-
-1. Severity
-2. File/hunk
-3. What is wrong (one sentence)
-4. Why it matters for leafmd (invariant or security)
-5. Concrete fix, with a tiny patch if obvious
-
-Do not:
-
-- Relitigate §2 frozen decisions
-- Ask for a website, daemon, config file, or plugin system
-- Demand docstrings on every private helper
-- Restyle to Black/88
-- Change Copilot comment formatting or the PR overview
-- Approve or request-changes (Copilot comments only)
+Each actionable comment should state severity, file/hunk, the defect, why it violates a current invariant, and a concrete fix. Avoid phase/ticket archaeology, style churn, generic framework requests, or speculative website/daemon work.
 
 ## After review
 
-If you used this skill, say so in the summary (“used code-review skill”). List blockers first, then must-fix, then should-fix. Omit nits unless the file is otherwise clean and the nit would fail CI.
+List blockers first, then must-fix, then should-fix. Omit nits unless they would fail configured tooling.

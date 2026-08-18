@@ -6,20 +6,27 @@ applyTo: "docs/**/*.md"
 
 ## Sources of truth
 
-- Frozen product decisions: `docs/implementation-plan.md` §2
+- Current behavior: implementation under `src/leafmd/` plus tests
+- User-facing overview/CLI: `README.md`
+- Pipeline/boundaries: `docs/architecture.md`
+- Output contract: `docs/canonical-format.md`
+- Security boundary: `docs/security.md`
 - PR process: `docs/github-workflow.md`
-- Do not silently reopen §2 (name, privacy, regenerate-only, case A planner, anchor contract, schemes, AGPL).
+- `docs/implementation-plan.md` is retained as historical planning context only; do not use old phase/ticket or privacy statements as current requirements.
 
 ## Writing rules
 
-- Document **current** shipped behavior. Footnotes and Phase 3 B/C are shipped in the current 0.3.x branch. Label html5lib, EPUBCheck, and the reading site as later.
-- Do not promise a public API, PyPI release, daemon, or `book.pettee.org` implementation in this repo.
-- Keep commands copy-pasteable and matching CI: `ruff`, `mypy`, `python -m pytest`.
-- Prefer short imperative lists over architecture essays.
+- Document **current** behavior, including the public repository and opt-in `--convert-images` path. Clearly label unimplemented work such as html5lib runtime recovery, EPUBCheck, recursive conversion, and a reading site.
+- Distinguish source MathML preservation from OCR-derived formula-to-LaTeX conversion.
+- Do not claim `convert` runs `validate` automatically.
+- Do not claim ZIP-bomb/member-path limits or parse-based SVG sanitization while the code does not implement them.
+- Keep commands copy-pasteable and aligned with CI (`uv run ruff`, `uv run mypy`, filtered `uv run python -m pytest`).
+- Do not promise a public upload API, PyPI release, daemon, or website implementation.
 
 ## What to flag
 
-- Docs that describe unimplemented Phase 3–6 behavior as if it shipped
-- Instructions that tell people to commit EPUBs or converted libraries
+- Stale private-repository or historical phase/ticket language presented as current policy
+- Docs that describe planned behavior as shipped, or omit a shipped public CLI option
+- Instructions that tell people to commit EPUBs/converted libraries/model caches
 - Broken relative links between docs
-- Security claims that the converter output is safe public HTML
+- Security claims stronger than the current implementation or claims that canonical output is safe public HTML

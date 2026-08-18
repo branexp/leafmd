@@ -8,16 +8,17 @@ applyTo: "tests/**"
 
 - Unit: `tests/unit/`
 - Integration / synthetic EPUBs: `tests/integration/` + `tests/fixtures/epub_builder.py`
-- Goldens (when added): `tests/golden/`
-- Build EPUBs in-memory via the fixture builder. Do not vendor `.epub` binaries unless the ticket explicitly adds a tiny synthetic file.
+- Goldens (if/when added): `tests/golden/`
+- Build EPUBs in memory through the fixture builder; do not vendor copyrighted `.epub` binaries.
 
 ## Required checks
 
-- New behavior needs a test. Bug fixes need a regression test.
-- Hostile-input tests (zip-slip, bombs, XXE, DRM, unsafe schemes, SVG script) are not optional when those paths change.
-- Assert report **codes** (`LINK_UNRESOLVED`, `PLAN_NONLINEAR`, …), not only substrings of messages.
-- Prefer `python -m pytest` selectors over whole-suite-only PRs.
-- Tests must be deterministic. No network. No wall-clock sleeps. No home-directory writes.
+- New behavior needs a test; bug fixes need a regression test.
+- When hostile-input paths change, cover the protections the code actually has: invalid ZIP, DRM/encryption, XML entities/DTD/network, unsafe URL schemes/active HTML, SVG hardening, and generated-output path escapes as applicable.
+- Do not require tests for nonexistent ZIP-bomb/member-path filters unless code deliberately introduces that policy.
+- Assert stable report **codes** (`LINK_UNRESOLVED`, `PLAN_NONLINEAR`, `IMAGE_ANALYSIS_FAILED`, …), not only message substrings.
+- Prefer focused `python -m pytest` selectors while developing; keep the CI marker filter green before merge.
+- Tests must be deterministic: no network, wall-clock sleeps, home-directory writes, implicit model downloads, or dependence on a private corpus.
 
 ```python
 # Avoid
@@ -27,20 +28,23 @@ assert "could not resolve" in report_text
 assert any(issue.code == "LINK_UNRESOLVED" for issue in report.issues)
 ```
 
-## Goldens
+## Optional image analysis
 
-- Do not approve or rewrite golden trees in the same PR that changes converter output unless the ticket is explicitly a golden update.
-- CI must never pass `--update-goldens`.
-- Normalize only documented volatile fields (e.g. `tool_version`).
+- Parser/decision tests should use PP-StructureV3-shaped JSON fixtures or direct normalized results.
+- Pipeline tests should inject a fake `ImageAnalyzer`; do not require PaddleOCR to be installed in default CI.
+- Subprocess-adapter tests must mock/stub execution unless explicitly marked for a provisioned external environment.
+- Cover visual/unknown labels, tables/formulas/text, inline-context preservation, analyzer failure/missing result, original-asset retention, and report counters when behavior changes.
 
-## Fixtures
+## Goldens and fixtures
 
-- One fixture family per ticket when possible (see implementation plan §9 batches).
-- Planner B/C contract tests are shipped behavior and must pass. Keep characterization work for later behavior explicitly marked rather than introducing intentional failures into the default suite.
-- Never add copyrighted books or `LEAFMD_CORPUS` contents.
+- Do not approve/rewrite golden trees in the same PR that changes converter output unless the PR is explicitly a reviewed golden update.
+- CI must never update goldens.
+- Normalize only documented volatile fields such as `tool_version`.
+- Planner merge/split behavior is shipped and must continue to pass.
+- Never add copyrighted books, converted library trees, `LEAFMD_CORPUS` contents, or model caches.
 
 ## Markers
 
-Use existing/planned markers: `unit`, `synthetic`, `integration`, `golden`, `security`, `slow`, `online`, `private`, `differential`, `epubcheck`.
+Registered markers are `unit`, `synthetic`, `integration`, `golden`, `security`, `slow`, `online`, `private`, `differential`, and `epubcheck`.
 
-Default CI is `not online and not private and not differential and not epubcheck`. Do not mark required Phase 1 tests as `online` / `private`.
+Default CI uses `not online and not private and not differential and not epubcheck`.

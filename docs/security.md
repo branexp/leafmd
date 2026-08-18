@@ -1,27 +1,31 @@
 # Security
 
-Treat every EPUB as hostile.
+Treat every EPUB as hostile input. Leafmd's converter-side protections reduce risk and preserve a deterministic local output format; they are not a general HTML-sanitization guarantee.
 
-## Ingest
+## Archive and XML boundary
 
-- Reject malformed ZIP/EPUB archives
-- Reject `META-INF/encryption.xml`
-- Read package members directly; never extract archive names to the filesystem
-- Parse XML with entity resolution off and no network
+- Reject invalid ZIP input and reject EPUBs containing `META-INF/encryption.xml`; leafmd does not bypass DRM.
+- Read archive members directly with `zipfile`; leafmd does not extract EPUB member names to the filesystem.
+- Current ingest intentionally has **no** ZIP entry-count, uncompressed-size, member-size, compression-ratio, or archive-member-path filtering policy. Do not document such limits unless code adds them.
+- XML uses lxml with entity resolution, DTD loading/validation, and network access disabled; `huge_tree` is off. Spine content falls back from the XML parser to lxml HTML recovery when needed.
+- Generated paths come from normalized metadata/plans and slugified names rather than raw archive paths. The independent validator also rejects generated relative links/TOC targets that escape the book directory.
 
-This private-library tool intentionally does not impose ZIP-bomb size/count or
-archive-member path filters. It does not use member names as output paths. The
-generated book directory is produced from normalized package metadata and
-slugified output names.
+## XHTML, links, and assets
 
-## Transform
+- Source-tree rewriting drops active elements including `script`, `iframe`, `object`, `embed`, and `form`, and strips event-handler attributes.
+- Rich-content sanitization additionally removes `base`, `applet`, `portal`, and embedded `svg`; strips `style`/`srcdoc`; constrains `dir` to `ltr|rtl|auto`; and removes unsafe URL-bearing attributes.
+- Internal links are rewritten through `TargetMap`. External links keep only `http`, `https`, and `mailto`; unsafe/unknown schemes are dropped.
+- Remote raster assets are never fetched. Referenced local JPEG/PNG/GIF/WebP/SVG assets and the cover may be copied.
+- SVG copying currently uses conservative regex-based removal of scripts, `foreignObject`, event/handler attributes, and external/active hrefs. This is not a complete parse-based SVG sanitizer.
 
-- Rich XHTML trees drop `script`, `iframe`, `object`, `embed`, `form`, `base`, `applet`, `portal`, and `svg`; event handlers, `style`, and `srcdoc` are stripped
-- Sanitize rich directionality to safe `dir="rtl|ltr|auto"`; remove unsafe URL-bearing attributes
-- Allow `http`, `https`, `mailto`, and internal relative links
-- Sanitize SVG assets separately (`script`, event attributes, foreign content, and external HTTP references)
-- Never fetch remote assets
+## Optional image analyzer boundary
 
-## Site
+`--convert-images` is opt-in and executes the `paddleocr` program found on `PATH`. Leafmd stages only already-copied eligible raster images in a temporary directory, consumes PP-StructureV3 JSON, and preserves originals when results are visual/ambiguous/unsafe or when analysis fails after startup.
 
-Astro / any HTML renderer must sanitize again. Converter output is not a public-HTML trust boundary.
+PaddleOCR is an external process and is **not sandboxed by leafmd**. Leafmd does not install Paddle or download models, but a user's Paddle installation may use its own model cache or perform downloads depending on how it is provisioned. Environments requiring strict no-network execution should pre-provision the backend and enforce isolation outside leafmd.
+
+Recovered table HTML is re-parsed with lxml (`no_network=True`), reduced to an allowlist, stripped of attributes except bounded table spans, and rejected if it cannot be represented safely. This does not make arbitrary analyzer output trusted HTML.
+
+## Output / site boundary
+
+The generated book directory is not safe public HTML by definition. Any website or HTML renderer must apply its own independent sanitization and content-security policy.
